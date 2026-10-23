@@ -1,0 +1,65 @@
+{% extends 'base.html' %}{% load ui %}
+{% block title %}{{ asset.hostname }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <div class="crumbs"><a href="{% url 'asset_list' %}">อุปกรณ์</a> / <span aria-current="page">{{ asset.hostname }}</span></div>
+    <h1 class="mono" style="font-size:22px">{{ asset.hostname }}</h1>
+    <p>{{ asset.get_asset_type_display }} · {{ asset.location }}{% if not asset.is_active %} · เลิกใช้งาน{% endif %}</p>
+  </div>
+  <div class="actions">
+    {% if can.edit_vulns and asset.is_active %}<a class="btn btn-primary" href="{% url 'vuln_create' %}?asset={{ asset.pk }}">{% icon 'plus' %}เพิ่มช่องโหว่ให้เครื่องนี้</a>{% endif %}
+    {% if can.edit_assets %}
+      <a class="btn btn-secondary" href="{% url 'asset_edit' asset.pk %}">{% icon 'edit' %}แก้ไข</a>
+      <a class="btn btn-danger" href="{% url 'asset_delete' asset.pk %}">{% icon 'trash' %}ลบ</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="card">
+    <div class="card-head"><h2>ช่องโหว่บนเครื่องนี้</h2><p>{{ vulns|length }} รายการ</p></div>
+    {% if vulns %}
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">ความรุนแรง</th><th scope="col">รหัส CVE</th><th scope="col">ชื่อช่องโหว่</th><th scope="col">วันที่พบ</th><th scope="col">สถานะ</th></tr></thead>
+        <tbody>
+        {% for v in vulns %}
+          <tr>
+            <td>{% severity_badge v.severity %}</td>
+            <td><a class="row-link mono" href="{% url 'vuln_detail' v.pk %}">{{ v.cve_id }}</a></td>
+            <td>{{ v.title }}</td>
+            <td class="num" style="white-space:nowrap">{{ v.found_at|thai_date }}</td>
+            <td>{% status_badge v.status %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">{% icon 'check' %}<b>ไม่พบช่องโหว่บนเครื่องนี้</b></div>
+    {% endif %}
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="card">
+      <h2 class="section-title">ข้อมูลอุปกรณ์</h2>
+      <dl class="facts" style="grid-template-columns:130px 1fr;padding-top:8px">
+        <dt>IP Address</dt><dd class="mono">{{ asset.ip_address|default:'-' }}</dd>
+        <dt>ระบบปฏิบัติการ</dt><dd>{{ asset.operating_system|default:'-' }}</dd>
+        <dt>ห้อง / พื้นที่</dt><dd>{{ asset.location }}</dd>
+        <dt>ผู้รับผิดชอบ</dt><dd>{{ asset.owner|default:'-' }}</dd>
+        <dt>เพิ่มเมื่อ</dt><dd>{{ asset.created_at|thai_date }}</dd>
+      </dl>
+    </div>
+    <div class="card">
+      <h2 class="section-title">ช่องโหว่ที่ยังไม่แก้ไข</h2>
+      <ul class="legend" style="padding:8px 24px 20px">
+        {% for s in severity %}
+        <li><span class="swatch {{ s.value }}"></span><span class="label">{{ s.label }}</span><b class="num">{{ s.count }}</b></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends 'base.html' %}{% load ui %}
+{% block title %}ยืนยันการลบ{% endblock %}
+{% block content %}
+<div class="card form-card">
+  <div class="card-pad" style="display:flex;flex-direction:column;gap:12px">
+    <h1 style="font-size:20px">{% if blocked %}ไม่สามารถลบได้{% else %}ยืนยันการลบ{% endif %}</h1>
+    <p style="margin:0">รายการ: <b class="mono">{{ object_label }}</b></p>
+    <div class="msg {% if blocked %}warning{% else %}error{% endif %}">{% icon 'alert' %}<span>{{ warning }}</span></div>
+  </div>
+  <form method="post" class="form-foot">
+    {% csrf_token %}
+    <a class="btn btn-secondary" href="{% url cancel_name cancel_pk %}">ยกเลิก</a>
+    {% if not blocked %}<button type="submit" class="btn btn-danger">{% icon 'trash' %}ลบถาวร</button>{% endif %}
+  </form>
+</div>
+{% endblock %}

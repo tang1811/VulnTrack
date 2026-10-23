@@ -1,0 +1,81 @@
+{% load static ui %}<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}EEC VulnTrack{% endblock %} · ระบบติดตามช่องโหว่</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <button type="button" class="icon-btn" id="menu-button" aria-controls="sidebar" aria-expanded="false" aria-label="เปิดเมนู">{% icon 'menu' %}</button>
+    <a class="brand" href="{% url 'dashboard' %}"><b>EEC VulnTrack</b></a>
+  </header>
+  <div class="scrim" data-close-menu aria-hidden="true"></div>
+
+  <nav class="sidebar" id="sidebar" aria-label="เมนูหลัก">
+    <a class="brand" href="{% url 'dashboard' %}">
+      <span class="brand-mark">{% icon 'shield' %}</span>
+      <span><b>EEC VulnTrack</b><span>ระบบติดตามช่องโหว่</span></span>
+    </a>
+
+    {# แสดงเฉพาะเมนูที่บทบาทของผู้ใช้มีสิทธิ์ (ตาราง PERMISSIONS ใน accounts/roles.py) #}
+    <div class="nav-group">
+      {% if can.view_dashboard %}
+      <a class="nav-link" href="{% url 'dashboard' %}" {% if section == 'dashboard' %}aria-current="page"{% endif %}>{% icon 'dashboard' %}แดชบอร์ด</a>
+      {% endif %}
+      {% if can.view_vulns %}
+      <a class="nav-link" href="{% url 'vuln_list' %}" {% if section == 'vulns' %}aria-current="page"{% endif %}>{% icon 'shield-alert' %}ช่องโหว่{% if nav_critical %}<span class="nav-count" title="ระดับวิกฤตที่ยังไม่แก้ไข">{{ nav_critical }}</span>{% endif %}</a>
+      {% endif %}
+      {% if can.view_assets %}
+      <a class="nav-link" href="{% url 'asset_list' %}" {% if section == 'assets' %}aria-current="page"{% endif %}>{% icon 'monitor' %}อุปกรณ์</a>
+      {% endif %}
+      {% if can.import_scans %}
+      <a class="nav-link" href="{% url 'import_scan' %}" {% if section == 'import' %}aria-current="page"{% endif %}>{% icon 'upload' %}นำเข้าไฟล์สแกน</a>
+      {% endif %}
+      {% if can.view_reports %}
+      <a class="nav-link" href="{% url 'reports' %}" {% if section == 'reports' %}aria-current="page"{% endif %}>{% icon 'report' %}รายงาน</a>
+      {% endif %}
+    </div>
+
+    {% if can.view_history or can.manage_users %}
+    <div class="nav-group">
+      <span class="nav-title">ผู้ดูแลระบบ</span>
+      {% if can.view_history %}
+      <a class="nav-link" href="{% url 'history' %}" {% if section == 'history' %}aria-current="page"{% endif %}>{% icon 'history' %}ประวัติการเปลี่ยนสถานะ</a>
+      {% endif %}
+      {% if can.manage_users %}
+      <a class="nav-link" href="{% url 'user_list' %}" {% if section == 'users' %}aria-current="page"{% endif %}>{% icon 'users' %}จัดการผู้ใช้</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="user-card">
+      <span class="avatar" aria-hidden="true">{{ user.initial }}</span>
+      <span class="who"><b>{{ user.display_name }}</b><span>{{ user.get_role_display }}</span></span>
+      <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="icon-btn" aria-label="ออกจากระบบ" title="ออกจากระบบ">{% icon 'logout' %}</button>
+      </form>
+    </div>
+  </nav>
+
+  <main class="main" id="main">
+    {% if messages %}
+    <ul class="messages" role="status">
+      {% for m in messages %}
+      <li class="msg {{ m.tags }}">{% if m.tags == 'success' %}{% icon 'check' %}{% else %}{% icon 'info' %}{% endif %}<span>{{ m }}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% block scripts %}{% endblock %}
+<script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>

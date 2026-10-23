@@ -1,0 +1,10 @@
+{% extends 'base.html' %}{% load ui %}
+{% block title %}ไม่มีสิทธิ์เข้าถึง{% endblock %}
+{% block content %}
+<div class="card empty">
+  {% icon 'lock' %}
+  <b>คุณไม่มีสิทธิ์เข้าถึงหน้านี้</b>
+  <p>บทบาท "{{ user.get_role_display }}" ไม่สามารถใช้งานส่วนนี้ได้ หากต้องการสิทธิ์เพิ่มเติม โปรดติดต่อผู้ดูแลระบบ</p>
+  <a class="btn btn-primary" href="{% url 'dashboard' %}">กลับไปหน้าแดชบอร์ด</a>
+</div>
+{% endblock %}

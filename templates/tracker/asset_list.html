@@ -1,0 +1,75 @@
+{% extends 'base.html' %}{% load ui %}
+{% block title %}อุปกรณ์{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1>อุปกรณ์ในวิทยาลัย</h1>
+    <p>เซิร์ฟเวอร์ คอมพิวเตอร์ และอุปกรณ์เครือข่ายที่ตรวจสอบช่องโหว่ · {{ page.paginator.count }} รายการ</p>
+  </div>
+  {% if can.edit_assets %}<div class="actions"><a class="btn btn-primary" href="{% url 'asset_create' %}">{% icon 'plus' %}เพิ่มอุปกรณ์</a></div>{% endif %}
+</div>
+
+<div class="card">
+  <form class="filters" method="get" role="search">
+    <div class="field grow">
+      <label for="a-q">ค้นหา</label>
+      <input type="search" id="a-q" name="q" value="{{ f.q }}" placeholder="Hostname, IP หรือผู้รับผิดชอบ">
+    </div>
+    <div class="field">
+      <label for="a-loc">ห้อง / พื้นที่</label>
+      <select id="a-loc" name="location">
+        <option value="">ทั้งหมด</option>
+        {% for loc in locations %}<option value="{{ loc }}" {% if f.location == loc %}selected{% endif %}>{{ loc }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="a-type">ประเภท</label>
+      <select id="a-type" name="type">
+        <option value="">ทั้งหมด</option>
+        {% for v, l in types %}<option value="{{ v }}" {% if f.type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">{% icon 'search' %}กรอง</button>
+    {% if has_filter %}<a class="btn btn-ghost" href="{% url 'asset_list' %}">ล้างตัวกรอง</a>{% endif %}
+  </form>
+
+  {% if page.object_list %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th scope="col">Hostname</th>
+          <th scope="col">ประเภท / ระบบปฏิบัติการ</th>
+          <th scope="col">ห้อง / พื้นที่</th>
+          <th scope="col">IP Address</th>
+          <th scope="col" class="right">วิกฤต</th>
+          <th scope="col" class="right">สูง</th>
+          <th scope="col" class="right">ปานกลาง</th>
+          <th scope="col" class="right">ต่ำ</th>
+          <th scope="col">สถานะเครื่อง</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for a in page.object_list %}
+        <tr>
+          <td><a class="row-link mono" href="{% url 'asset_detail' a.pk %}">{{ a.hostname }}</a></td>
+          <td>{{ a.get_asset_type_display }}<div class="small muted">{{ a.operating_system|default:'-' }}</div></td>
+          <td>{{ a.location }}</td>
+          <td class="mono small">{{ a.ip_address|default:'-' }}</td>
+          <td class="right"><span class="count-chip {% if a.n_critical %}critical{% else %}zero{% endif %}">{{ a.n_critical }}</span></td>
+          <td class="right"><span class="count-chip {% if a.n_high %}high{% else %}zero{% endif %}">{{ a.n_high }}</span></td>
+          <td class="right"><span class="count-chip {% if a.n_medium %}medium{% else %}zero{% endif %}">{{ a.n_medium }}</span></td>
+          <td class="right"><span class="count-chip {% if a.n_low %}low{% else %}zero{% endif %}">{{ a.n_low }}</span></td>
+          <td>{% if a.is_active %}<span class="tag">ใช้งานอยู่</span>{% else %}<span class="tag">เลิกใช้งาน</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted" style="margin:0;padding:10px 24px">ตัวเลขคือจำนวนช่องโหว่ที่ยังไม่แก้ไขเสร็จ</p>
+  {% include 'tracker/_pager.html' %}
+  {% else %}
+  <div class="empty">{% icon 'inbox' %}<b>ไม่พบอุปกรณ์</b>{% if has_filter %}<a href="{% url 'asset_list' %}">ล้างตัวกรอง</a>{% endif %}</div>
+  {% endif %}
+</div>
+{% endblock %}

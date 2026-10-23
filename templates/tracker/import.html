@@ -1,0 +1,79 @@
+{% extends 'base.html' %}{% load ui %}
+{% block title %}นำเข้าไฟล์สแกน{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1>นำเข้าไฟล์ผลสแกน</h1>
+    <p>อัปโหลดไฟล์ CSV หรือ JSON เพื่อเพิ่มช่องโหว่หลายรายการพร้อมกัน</p>
+  </div>
+  <div class="actions"><a class="btn btn-secondary" href="{% url 'import_template' %}">{% icon 'download' %}ดาวน์โหลดไฟล์ตัวอย่าง (CSV)</a></div>
+</div>
+
+<div class="detail-grid">
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <form class="card" method="post" enctype="multipart/form-data" novalidate>
+      {% csrf_token %}
+      <div class="card-pad" style="display:flex;flex-direction:column;gap:14px">
+        <div class="form-field {% if form.file.errors %}has-error{% endif %}">
+          <label for="{{ form.file.id_for_label }}">{{ form.file.label }}</label>
+          <input type="file" name="file" id="{{ form.file.id_for_label }}" accept=".csv,.json" required>
+          <div class="help">ขนาดไม่เกิน 2 MB · เข้ารหัส UTF-8 · อุปกรณ์ต้องมีอยู่ในระบบก่อน (อ้างอิงด้วย hostname)</div>
+          {{ form.file.errors }}
+        </div>
+        <div><button type="submit" class="btn btn-primary">{% icon 'upload' %}นำเข้าข้อมูล</button></div>
+      </div>
+    </form>
+
+    {% if result %}
+    <div class="card">
+      <h2 class="section-title">ผลการนำเข้า: <span class="mono">{{ result.file_name }}</span></h2>
+      <dl class="facts" style="padding-top:8px">
+        <dt>จำนวนแถวทั้งหมด</dt><dd class="num">{{ result.total_rows }}</dd>
+        <dt>นำเข้าสำเร็จ</dt><dd class="num" style="color:var(--success-text);font-weight:600">{{ result.created_count }}</dd>
+        <dt>ข้าม</dt><dd class="num">{{ result.skipped_count }}</dd>
+      </dl>
+      {% if result.error_lines %}
+      <h2 class="section-title">รายการที่ข้าม</h2>
+      <ul class="small" style="margin:0;padding:0 24px 20px 44px">{% for e in result.error_lines %}<li>{{ e }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-head"><h2>ประวัติการนำเข้าล่าสุด</h2></div>
+      {% if logs %}
+      <div class="table-wrap">
+        <table class="data compact">
+          <thead><tr><th scope="col">ไฟล์</th><th scope="col">วันเวลา</th><th scope="col">ผู้นำเข้า</th><th scope="col" class="right">สำเร็จ</th><th scope="col" class="right">ข้าม</th></tr></thead>
+          <tbody>
+          {% for log in logs %}
+            <tr><td class="mono small">{{ log.file_name }}</td><td>{{ log.imported_at|thai_date:True }}</td><td>{{ log.imported_by.display_name|default:'-' }}</td><td class="right num">{{ log.created_count }}</td><td class="right num">{{ log.skipped_count }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty" style="padding:28px">ยังไม่เคยนำเข้าไฟล์</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="section-title">รูปแบบไฟล์</h2>
+    <div style="padding:0 24px 20px;font-size:14px;display:flex;flex-direction:column;gap:10px">
+      <p style="margin:0">คอลัมน์ที่รองรับ (<b>ตัวหนา</b> = จำเป็น)</p>
+      <ul style="margin:0;padding-left:20px">
+        <li><b class="mono">cve_id</b> — เช่น CVE-2024-3094</li>
+        <li><b class="mono">title</b> — ชื่อช่องโหว่</li>
+        <li><b class="mono">severity</b> — critical, high, medium, low</li>
+        <li><b class="mono">hostname</b> — ชื่อเครื่องที่มีในระบบ</li>
+        <li><span class="mono">cvss_score</span> — 0.0 ถึง 10.0</li>
+        <li><span class="mono">found_at</span> — YYYY-MM-DD (ว่าง = วันนี้)</li>
+        <li><span class="mono">description</span>, <span class="mono">solution</span></li>
+      </ul>
+      <p style="margin:0">ไฟล์ JSON ใช้คีย์เดียวกัน เป็น array ของ object หรือ <code>{"vulnerabilities": [...]}</code></p>
+      <p class="muted small" style="margin:0">CVE ที่มีอยู่แล้วบนเครื่องเดียวกันจะถูกข้าม ไม่สร้างซ้ำ</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

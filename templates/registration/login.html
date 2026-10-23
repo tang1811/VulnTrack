@@ -1,0 +1,52 @@
+{% load static ui %}<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>เข้าสู่ระบบ · EEC VulnTrack</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+<main class="center-page">
+  <div class="card auth-card">
+    <div class="brand">
+      <span class="brand-mark" style="color:#fff">{% icon 'shield' %}</span>
+      <span><b>EEC VulnTrack</b><span>ระบบติดตามและรายงานช่องโหว่ทางเทคนิค</span></span>
+    </div>
+    <h1 style="font-size:20px">เข้าสู่ระบบ</h1>
+    <p class="muted small" style="margin:4px 0 20px">วิทยาลัยเทคโนโลยีแหลมฉบัง EEC</p>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+      <div class="msg error" role="alert">{% icon 'alert' %}<span>{{ form.non_field_errors.0 }}</span></div>
+      {% endif %}
+      <div class="form-field">
+        <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+        {{ form.username }}
+      </div>
+      <div class="form-field">
+        <label for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
+        {{ form.password }}
+      </div>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit" class="btn btn-primary">{% icon 'lock' %}เข้าสู่ระบบ</button>
+    </form>
+
+    {% if show_demo %}
+    <div class="demo-box">
+      <b>บัญชีทดลอง</b> (รหัสผ่าน <code>Eec@2569demo</code>)
+      <table>
+        <tr><td><code>admin</code></td><td>ผู้ดูแลระบบ — ใช้ได้ทุกหน้า</td></tr>
+        <tr><td><code>tech1</code></td><td>เจ้าหน้าที่เทคนิค — จัดการช่องโหว่</td></tr>
+        <tr><td><code>exec</code></td><td>ผู้บริหาร — ดูแดชบอร์ดและรายงาน</td></tr>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</main>
+</body>
+</html>

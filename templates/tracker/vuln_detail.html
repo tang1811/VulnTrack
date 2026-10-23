@@ -1,0 +1,77 @@
+{% extends 'base.html' %}{% load ui %}
+{% block title %}{{ v.cve_id }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <div class="crumbs"><a href="{% url 'vuln_list' %}">รายการช่องโหว่</a> / <span aria-current="page">{{ v.cve_id }}</span></div>
+    <h1 class="mono" style="font-size:22px">{{ v.cve_id }}</h1>
+    <p>{{ v.title }}</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="https://nvd.nist.gov/vuln/detail/{{ v.cve_id }}" target="_blank" rel="noopener noreferrer">ดูข้อมูลบน NVD ↗</a>
+    {% if can.edit_vulns %}<a class="btn btn-secondary" href="{% url 'vuln_edit' v.pk %}">{% icon 'edit' %}แก้ไข</a>{% endif %}
+    {% if can.delete_vulns %}<a class="btn btn-danger" href="{% url 'vuln_delete' v.pk %}">{% icon 'trash' %}ลบ</a>{% endif %}
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="card">
+    <dl class="facts">
+      <dt>ระดับความรุนแรง</dt><dd>{% severity_badge v.severity %} <span class="muted small">CVSS {{ v.cvss_score|default_if_none:'-' }}</span></dd>
+      <dt>สถานะ</dt><dd>{% status_badge v.status %}</dd>
+      <dt>อุปกรณ์ที่ได้รับผลกระทบ</dt>
+      <dd>
+        {% if can.view_assets %}<a class="mono" href="{% url 'asset_detail' v.asset_id %}">{{ v.asset.hostname }}</a>{% else %}<span class="mono">{{ v.asset.hostname }}</span>{% endif %}
+        <div class="small muted">{{ v.asset.get_asset_type_display }} · {{ v.asset.operating_system|default:'-' }} · {{ v.asset.location }}{% if v.asset.ip_address %} · <span class="mono">{{ v.asset.ip_address }}</span>{% endif %}</div>
+      </dd>
+      <dt>วันที่พบ</dt><dd>{{ v.found_at|thai_date }}</dd>
+      <dt>วันที่แก้ไขเสร็จ</dt><dd>{{ v.fixed_at|thai_date:True }}</dd>
+      <dt>บันทึกโดย</dt><dd>{{ v.created_by.display_name|default:'-' }}</dd>
+    </dl>
+    <h2 class="section-title">รายละเอียด</h2>
+    <div class="prose">{{ v.description|default:'-' }}</div>
+    <h2 class="section-title">วิธีแก้ไข</h2>
+    <div class="prose">{{ v.solution|default:'-' }}</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+    {% if can.edit_vulns %}
+    <form class="card" method="post" action="{% url 'vuln_status' v.pk %}">
+      {% csrf_token %}
+      {{ status_form.from_status }}
+      <h2 class="section-title">อัปเดตสถานะ</h2>
+      <div style="padding:4px 24px 20px;display:flex;flex-direction:column;gap:12px">
+        <fieldset style="border:0;margin:0;padding:0">
+          <legend class="sr-only">สถานะใหม่</legend>
+          <div class="radio-row">
+            {% for radio in status_form.status %}<label>{{ radio.tag }}{{ radio.choice_label }}</label>{% endfor %}
+          </div>
+        </fieldset>
+        <div class="form-field">
+          <label for="{{ status_form.note.id_for_label }}">{{ status_form.note.label }}</label>
+          {{ status_form.note }}
+        </div>
+        <p class="small muted" style="margin:0">การเปลี่ยนแปลงจะถูกบันทึกในประวัติพร้อมชื่อผู้แก้ไข</p>
+        <button type="submit" class="btn btn-primary">บันทึกสถานะ</button>
+      </div>
+    </form>
+    {% endif %}
+
+    <div class="card">
+      <h2 class="section-title">ประวัติการเปลี่ยนสถานะ</h2>
+      <ol class="timeline">
+        {% for h in history %}
+        <li>
+          <span class="node {{ h.new_status }}"></span>
+          <div>{% if h.old_status %}{{ h.get_old_status_display }} → {% endif %}<b>{{ h.get_new_status_display }}</b></div>
+          <div class="meta">{{ h.changed_at|thai_date:True }} · {{ h.changed_by.display_name|default:'ระบบ' }}</div>
+          {% if h.note %}<div class="note">{{ h.note }}</div>{% endif %}
+        </li>
+        {% empty %}
+        <li class="muted">ยังไม่มีประวัติ</li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+</div>
+{% endblock %}

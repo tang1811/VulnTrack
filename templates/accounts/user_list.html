@@ -1,0 +1,38 @@
+{% extends 'base.html' %}{% load ui %}
+{% block title %}จัดการผู้ใช้{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1>จัดการผู้ใช้</h1>
+    <p>{% for r in roles %}{{ r.label }} {{ r.count }} คน{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+  </div>
+  <div class="actions"><a class="btn btn-primary" href="{% url 'user_create' %}">{% icon 'plus' %}เพิ่มผู้ใช้</a></div>
+</div>
+
+<section class="grid grid-kpi">
+  <div class="card card-pad"><span class="role-pill">ผู้ดูแลระบบ</span><p class="small" style="margin:8px 0 0">ใช้ได้ทุกหน้า รวมถึงจัดการอุปกรณ์ ลบข้อมูล ดูประวัติทั้งระบบ และจัดการผู้ใช้</p></div>
+  <div class="card card-pad"><span class="role-pill technician">เจ้าหน้าที่เทคนิค</span><p class="small" style="margin:8px 0 0">ดูแดชบอร์ด เพิ่ม/แก้ไขช่องโหว่ เปลี่ยนสถานะ ดูข้อมูลอุปกรณ์ และนำเข้าไฟล์สแกน</p></div>
+  <div class="card card-pad"><span class="role-pill executive">ผู้บริหาร</span><p class="small" style="margin:8px 0 0">ดูแดชบอร์ดภาพรวม และดู/ดาวน์โหลดรายงานสรุปเท่านั้น</p></div>
+</section>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col">ชื่อผู้ใช้</th><th scope="col">ชื่อ-นามสกุล</th><th scope="col">หน่วยงาน</th><th scope="col">บทบาท</th><th scope="col">สถานะบัญชี</th><th scope="col">เข้าใช้ล่าสุด</th><th scope="col" class="right">ดำเนินการ</th></tr></thead>
+      <tbody>
+      {% for u in users %}
+        <tr>
+          <td class="mono">{{ u.username }}{% if u.pk == user.pk %} <span class="tag">คุณ</span>{% endif %}</td>
+          <td>{{ u.get_full_name|default:'-' }}</td>
+          <td>{{ u.department|default:'-' }}</td>
+          <td><span class="role-pill {{ u.role }}">{{ u.get_role_display }}</span></td>
+          <td>{% if u.is_active %}<span class="pill st-fixed"><span class="dot"></span>ใช้งานได้</span>{% else %}<span class="pill st-open"><span class="dot"></span>ระงับ</span>{% endif %}</td>
+          <td class="small">{{ u.last_login|thai_date:True }}</td>
+          <td class="right"><a class="btn btn-secondary btn-sm" href="{% url 'user_edit' u.pk %}">{% icon 'edit' %}แก้ไข</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

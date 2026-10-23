@@ -1,0 +1,4 @@
+# ให้ Git จัดการตัวขึ้นบรรทัดอัตโนมัติ ส่วนไฟล์ .bat ต้องเป็น CRLF เสมอ (ไม่งั้น Windows รันผิด)
+* text=auto
+*.bat text eol=crlf
+*.min.js -diff

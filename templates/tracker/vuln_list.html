@@ -1,0 +1,112 @@
+{% extends 'base.html' %}{% load ui %}
+{% block title %}รายการช่องโหว่{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1>รายการช่องโหว่</h1>
+    <p>ทั้งหมด {{ page.paginator.count }} รายการ{% if has_filter %} ตามตัวกรอง{% endif %}</p>
+  </div>
+  <div class="actions">
+    {% if can.import_scans %}<a class="btn btn-secondary" href="{% url 'import_scan' %}">{% icon 'upload' %}นำเข้าไฟล์สแกน</a>{% endif %}
+    {% if can.edit_vulns %}<a class="btn btn-primary" href="{% url 'vuln_create' %}">{% icon 'plus' %}เพิ่มช่องโหว่</a>{% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <form class="filters" method="get" role="search">
+    <div class="field grow">
+      <label for="f-q">ค้นหา</label>
+      <input type="search" id="f-q" name="q" value="{{ f.q }}" placeholder="CVE, ชื่อช่องโหว่ หรือ hostname">
+    </div>
+    <div class="field">
+      <label for="f-sev">ความรุนแรง</label>
+      <select id="f-sev" name="severity">
+        <option value="">ทั้งหมด</option>
+        {% for v, l in severities %}<option value="{{ v }}" {% if f.severity == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-st">สถานะ</label>
+      <select id="f-st" name="status">
+        <option value="">ทั้งหมด</option>
+        <option value="pending" {% if f.status == 'pending' %}selected{% endif %}>ยังไม่เสร็จ (ยังไม่แก้ไข + กำลังแก้ไข)</option>
+        {% for v, l in statuses %}<option value="{{ v }}" {% if f.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-loc">ห้อง / พื้นที่</label>
+      <select id="f-loc" name="location">
+        <option value="">ทั้งหมด</option>
+        {% for loc in locations %}<option value="{{ loc }}" {% if f.location == loc %}selected{% endif %}>{{ loc }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-sort">เรียงตาม</label>
+      <select id="f-sort" name="sort">
+        <option value="severity">ความรุนแรง</option>
+        <option value="newest" {% if f.sort == 'newest' %}selected{% endif %}>พบล่าสุด</option>
+        <option value="updated" {% if f.sort == 'updated' %}selected{% endif %}>อัปเดตล่าสุด</option>
+        <option value="host" {% if f.sort == 'host' %}selected{% endif %}>ชื่ออุปกรณ์</option>
+      </select>
+    </div>
+    {% if f.asset %}<input type="hidden" name="asset" value="{{ f.asset }}">{% endif %}
+    <button type="submit" class="btn btn-primary">{% icon 'search' %}กรอง</button>
+    {% if has_filter %}<a class="btn btn-ghost" href="{% url 'vuln_list' %}">ล้างตัวกรอง</a>{% endif %}
+  </form>
+
+  {% if page.object_list %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th scope="col">ความรุนแรง</th>
+          <th scope="col">รหัส CVE</th>
+          <th scope="col">ชื่อช่องโหว่</th>
+          <th scope="col">อุปกรณ์ที่ได้รับผลกระทบ</th>
+          <th scope="col">วันที่พบ</th>
+          <th scope="col">สถานะ</th>
+          {% if can.edit_vulns %}<th scope="col" class="right">ดำเนินการ</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for v in page.object_list %}
+        <tr>
+          <td>{% severity_badge v.severity %} <span class="small muted num">{{ v.cvss_score|default_if_none:'' }}</span></td>
+          <td><a class="row-link mono" href="{% url 'vuln_detail' v.pk %}">{{ v.cve_id }}</a></td>
+          <td>{{ v.title }}</td>
+          <td><div class="host">{% if can.view_assets %}<a class="row-link mono" href="{% url 'asset_detail' v.asset_id %}">{{ v.asset.hostname }}</a>{% else %}<span class="mono">{{ v.asset.hostname }}</span>{% endif %}<span>{{ v.asset.location }}</span></div></td>
+          <td class="num" style="white-space:nowrap">{{ v.found_at|thai_date }}</td>
+          <td>{% status_badge v.status %}</td>
+          {% if can.edit_vulns %}
+          <td class="right">
+            {% if v.status != 'fixed' %}
+            <form method="post" action="{% url 'vuln_status' v.pk %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <input type="hidden" name="from_status" value="{{ v.status }}">
+              {% if v.status == 'open' %}
+                <input type="hidden" name="status" value="in_progress"><button class="btn btn-secondary btn-sm">เริ่มแก้ไข</button>
+              {% else %}
+                <input type="hidden" name="status" value="fixed"><button class="btn btn-secondary btn-sm">แก้ไขเสร็จแล้ว</button>
+              {% endif %}
+            </form>
+            {% else %}
+              <a class="btn btn-ghost btn-sm" href="{% url 'vuln_detail' v.pk %}">ดูประวัติ</a>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include 'tracker/_pager.html' %}
+  {% else %}
+  <div class="empty">
+    {% icon 'inbox' %}
+    {% if has_filter %}<b>ไม่พบช่องโหว่ตามตัวกรอง</b><a href="{% url 'vuln_list' %}">ล้างตัวกรอง</a>
+    {% else %}<b>ยังไม่มีช่องโหว่ในระบบ</b>{% if can.edit_vulns %}<a href="{% url 'vuln_create' %}">เพิ่มช่องโหว่</a>{% endif %}{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends 'base.html' %}{% load ui %}
+{% block title %}รายงานสรุปความปลอดภัย{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1>รายงานสรุปช่องโหว่ทางเทคนิค</h1>
+    <div class="report-meta">
+      <span>วิทยาลัยเทคโนโลยีแหลมฉบัง EEC</span>
+      <span>ข้อมูล ณ {{ generated_at|thai_date:True }}</span>
+      <span>อุปกรณ์ที่ตรวจสอบ {{ assets_total }} เครื่อง</span>
+    </div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn btn-secondary" href="{% url 'report_csv' %}">{% icon 'download' %}ดาวน์โหลด CSV (Excel)</a>
+    <button type="button" class="btn btn-primary" data-print>{% icon 'printer' %}พิมพ์ / บันทึกเป็น PDF</button>
+  </div>
+</div>
+
+<section class="grid grid-kpi" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr))">
+  <div class="card kpi"><span class="kpi-label">ช่องโหว่ทั้งหมด</span><span class="kpi-value">{{ total }}</span></div>
+  {% for label, count in status_summary %}
+  <div class="card kpi"><span class="kpi-label">{{ label }}</span><span class="kpi-value">{{ count }}</span></div>
+  {% endfor %}
+  <div class="card kpi good"><span class="kpi-label">อัตราการแก้ไข</span><span class="kpi-value">{{ fixed_pct }}%</span><span class="kpi-note">เวลาแก้ไขเฉลี่ย {{ mttr_all|default_if_none:'-' }} วัน</span></div>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>สรุปตามระดับความรุนแรงและสถานะ</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th scope="col">ระดับความรุนแรง</th>{% for label in status_labels %}<th scope="col" class="right">{{ label }}</th>{% endfor %}<th scope="col" class="right">รวม</th><th scope="col" class="right">แก้ไขแล้ว (%)</th><th scope="col" class="right">เวลาแก้ไขเฉลี่ย</th></tr>
+      </thead>
+      <tbody>
+      {% for row in matrix %}
+        <tr>
+          <td>{% severity_badge row.value %}</td>
+          {% for c in row.cells %}<td class="right num">{{ c }}</td>{% endfor %}
+          <td class="right num"><b>{{ row.total }}</b></td>
+          <td class="right num">{{ row.pct }}%</td>
+          <td class="right num">{% if row.mttr is not None %}{{ row.mttr }} วัน{% else %}-{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>สรุปตามห้อง / พื้นที่</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col">ห้อง / พื้นที่</th><th scope="col" class="right">ทั้งหมด</th><th scope="col" class="right">ยังไม่เสร็จ</th><th scope="col" class="right">วิกฤตที่ค้าง</th><th scope="col" style="min-width:200px">ความคืบหน้าการแก้ไข</th></tr></thead>
+      <tbody>
+      {% for r in locations %}
+        <tr>
+          <td>{{ r.asset__location }}</td>
+          <td class="right num">{{ r.total }}</td>
+          <td class="right num">{{ r.pending }}</td>
+          <td class="right"><span class="count-chip {% if r.critical %}critical{% else %}zero{% endif %}">{{ r.critical }}</span></td>
+          <td><div style="display:flex;align-items:center;gap:10px"><div class="progress" style="flex:1" role="img" aria-label="แก้ไขแล้ว {{ r.pct }}%"><span style="width:{{ r.pct }}%"></span></div><span class="num small" style="width:40px;text-align:right">{{ r.pct }}%</span></div></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>ช่องโหว่ระดับวิกฤต / สูง ที่ยังไม่แก้ไข</h2><p>{{ open_critical|length }} รายการ</p></div>
+  {% if open_critical %}
+  <div class="table-wrap">
+    <table class="data compact">
+      <thead><tr><th scope="col">ความรุนแรง</th><th scope="col">รหัส CVE</th><th scope="col">ชื่อช่องโหว่</th><th scope="col">อุปกรณ์</th><th scope="col">วันที่พบ</th><th scope="col">สถานะ</th></tr></thead>
+      <tbody>
+      {% for v in open_critical %}
+        <tr>
+          <td>{% severity_badge v.severity %}</td>
+          <td class="mono">{{ v.cve_id }}</td>
+          <td>{{ v.title }}</td>
+          <td><div class="host"><span class="mono" style="font-size:14px;color:var(--text)">{{ v.asset.hostname }}</span><span>{{ v.asset.location }}</span></div></td>
+          <td class="num" style="white-space:nowrap">{{ v.found_at|thai_date }}</td>
+          <td>{% status_badge v.status %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">{% icon 'check' %}<b>ไม่มีช่องโหว่ระดับวิกฤต/สูงค้างอยู่</b></div>
+  {% endif %}
+</section>
+
+<p class="print-only small muted">พิมพ์จากระบบ EEC VulnTrack โดย {{ user.display_name }} ({{ user.get_role_display }})</p>
+{% endblock %}
