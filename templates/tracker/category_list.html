@@ -1,0 +1,40 @@
+{% extends 'base.html' %}{% load ui %}
+{% block title %}ประเภทช่องโหว่{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1>ประเภทช่องโหว่</h1>
+    <p>ใช้จัดกลุ่มช่องโหว่ในหน้ารายการ แดชบอร์ด และรายงาน{% if uncategorized %} · ยังไม่ระบุประเภท <a href="{% url 'vuln_list' %}?category=none">{{ uncategorized }} รายการ</a>{% endif %}</p>
+  </div>
+  <div class="actions"><a class="btn btn-primary" href="{% url 'category_create' %}">{% icon 'plus' %}เพิ่มประเภท</a></div>
+</div>
+
+<div class="card">
+  {% if categories %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col">ลำดับ</th><th scope="col">ชื่อประเภท</th><th scope="col">รหัส (ใช้ในไฟล์นำเข้า)</th><th scope="col" class="right">ทั้งหมด</th><th scope="col" class="right">ยังไม่เสร็จ</th><th scope="col">สถานะ</th><th scope="col" class="right">ดำเนินการ</th></tr></thead>
+      <tbody>
+      {% for c in categories %}
+        <tr>
+          <td class="num small">{{ c.sort_order }}</td>
+          <td><a class="row-link" href="{% url 'vuln_list' %}?category={{ c.pk }}">{{ c.name }}</a>{% if c.description %}<div class="small muted">{{ c.description }}</div>{% endif %}</td>
+          <td class="mono small">{{ c.code }}</td>
+          <td class="right num">{{ c.n_total }}</td>
+          <td class="right num">{{ c.n_pending }}</td>
+          <td>{% if c.is_active %}<span class="tag">ใช้งานอยู่</span>{% else %}<span class="tag">ปิดใช้งาน</span>{% endif %}</td>
+          <td class="right" style="white-space:nowrap">
+            <a class="btn btn-secondary btn-sm" href="{% url 'category_edit' c.pk %}">{% icon 'edit' %}แก้ไข</a>
+            {% if not c.n_total %}<a class="btn btn-ghost btn-sm" href="{% url 'category_delete' c.pk %}">{% icon 'trash' %}ลบ</a>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted" style="margin:0;padding:10px 24px">ประเภทที่มีช่องโหว่ใช้อยู่ลบไม่ได้ ให้แก้ไขแล้วปิด "ใช้งานอยู่" แทน (ข้อมูลเดิมยังแสดงประเภทนั้นตามปกติ)</p>
+  {% else %}
+  <div class="empty">{% icon 'inbox' %}<b>ยังไม่มีประเภทช่องโหว่</b><a href="{% url 'category_create' %}">เพิ่มประเภท</a></div>
+  {% endif %}
+</div>
+{% endblock %}

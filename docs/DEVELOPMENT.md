@@ -67,7 +67,7 @@ python manage.py <คำสั่ง>
 config/settings.py       ตั้งค่าทั้งหมด อ่านค่าลับจาก .env
 accounts/
   models.py              User + ฟิลด์ role (admin / technician / executive)
-  roles.py               ตารางสิทธิ์ PERMISSIONS + @role_required  ← แก้สิทธิ์ที่นี่ที่เดียว
+  roles.py               ตารางสิทธิ์ PERMISSIONS + @role_required + can_work_on (สิทธิ์ระดับรายการ)  ← แก้สิทธิ์ที่นี่ที่เดียว
   context_processors.py  ส่งตัวแปร can.* ให้ทุก template ใช้ซ่อนเมนู/ปุ่ม
   views.py, forms.py     ล็อกอิน, จัดการผู้ใช้
 tracker/
@@ -76,7 +76,7 @@ tracker/
   views.py               ทุกหน้าของระบบหลัก
   forms.py               ฟอร์มช่องโหว่ อุปกรณ์ สถานะ นำเข้าไฟล์
   urls.py                URL ทั้งหมด
-  templatetags/ui.py     {% icon %}, {% severity_badge %}, {% status_badge %}, |thai_date
+  templatetags/ui.py     {% icon %}, {% severity_badge %}, {% status_badge %}, {% person %}, |thai_date, |can_work
   management/commands/seed_demo.py   ข้อมูลตัวอย่าง
 templates/base.html      โครงหน้า + เมนูด้านซ้าย
 templates/tracker/       หน้าต่าง ๆ ของระบบ

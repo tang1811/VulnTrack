@@ -47,10 +47,53 @@
 </section>
 
 <section class="card">
+  <div class="card-head"><h2>สรุปตามประเภทช่องโหว่</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col">ประเภท</th><th scope="col" class="right">ทั้งหมด</th><th scope="col" class="right">ยังไม่เสร็จ</th><th scope="col" class="right">ระดับ 4-5 ที่ค้าง</th><th scope="col" style="min-width:200px">ความคืบหน้าการแก้ไข</th></tr></thead>
+      <tbody>
+      {% for r in by_category %}
+        <tr>
+          <td>{{ r.category__name|default:'ไม่ระบุประเภท' }}</td>
+          <td class="right num">{{ r.total }}</td>
+          <td class="right num">{{ r.pending }}</td>
+          <td class="right"><span class="count-chip {% if r.high %}high{% else %}zero{% endif %}">{{ r.high }}</span></td>
+          <td><div style="display:flex;align-items:center;gap:10px"><div class="progress" style="flex:1" role="img" aria-label="แก้ไขแล้ว {{ r.pct }}%"><span style="width:{{ r.pct }}%"></span></div><span class="num small" style="width:40px;text-align:right">{{ r.pct }}%</span></div></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="muted">ยังไม่มีข้อมูล</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>ผู้รับผิดชอบและผู้แก้ไข</h2><p>ยังไม่มีผู้รับผิดชอบ {{ unassigned }} รายการ</p></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col">ชื่อ</th><th scope="col">บทบาท / หน่วยงาน</th><th scope="col" class="right">งานที่รับผิดชอบค้างอยู่</th><th scope="col" class="right">แก้ไขเสร็จแล้ว</th></tr></thead>
+      <tbody>
+      {% for p in people %}
+        <tr>
+          <td>{% person p %}</td>
+          <td class="small">{{ p.get_role_display }}{% if p.department %} · {{ p.department }}{% endif %}</td>
+          <td class="right num">{{ p.n_pending }}</td>
+          <td class="right num">{{ p.n_fixed }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="muted">ยังไม่มีการมอบหมายงาน</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
   <div class="card-head"><h2>สรุปตามห้อง / พื้นที่</h2></div>
   <div class="table-wrap">
     <table class="data">
-      <thead><tr><th scope="col">ห้อง / พื้นที่</th><th scope="col" class="right">ทั้งหมด</th><th scope="col" class="right">ยังไม่เสร็จ</th><th scope="col" class="right">วิกฤตที่ค้าง</th><th scope="col" style="min-width:200px">ความคืบหน้าการแก้ไข</th></tr></thead>
+      <thead><tr><th scope="col">ห้อง / พื้นที่</th><th scope="col" class="right">ทั้งหมด</th><th scope="col" class="right">ยังไม่เสร็จ</th><th scope="col" class="right">ระดับ 5 ที่ค้าง</th><th scope="col" style="min-width:200px">ความคืบหน้าการแก้ไข</th></tr></thead>
       <tbody>
       {% for r in locations %}
         <tr>
@@ -67,18 +110,19 @@
 </section>
 
 <section class="card">
-  <div class="card-head"><h2>ช่องโหว่ระดับวิกฤต / สูง ที่ยังไม่แก้ไข</h2><p>{{ open_critical|length }} รายการ</p></div>
+  <div class="card-head"><h2>ช่องโหว่ระดับ 5 วิกฤต / 4 สูง ที่ยังไม่แก้ไข</h2><p>{{ open_critical|length }} รายการ</p></div>
   {% if open_critical %}
   <div class="table-wrap">
     <table class="data compact">
-      <thead><tr><th scope="col">ความรุนแรง</th><th scope="col">รหัส CVE</th><th scope="col">ชื่อช่องโหว่</th><th scope="col">อุปกรณ์</th><th scope="col">วันที่พบ</th><th scope="col">สถานะ</th></tr></thead>
+      <thead><tr><th scope="col">ความรุนแรง</th><th scope="col">รหัส CVE</th><th scope="col">ชื่อช่องโหว่</th><th scope="col">อุปกรณ์</th><th scope="col">ผู้รับผิดชอบ</th><th scope="col">วันที่พบ</th><th scope="col">สถานะ</th></tr></thead>
       <tbody>
       {% for v in open_critical %}
         <tr>
           <td>{% severity_badge v.severity %}</td>
           <td class="mono">{{ v.cve_id }}</td>
-          <td>{{ v.title }}</td>
+          <td>{{ v.title }}<div class="small muted">{{ v.category.name|default:'ไม่ระบุประเภท' }}</div></td>
           <td><div class="host"><span class="mono" style="font-size:14px;color:var(--text)">{{ v.asset.hostname }}</span><span>{{ v.asset.location }}</span></div></td>
+          <td class="small">{% person v.assigned_to 'ยังไม่มอบหมาย' %}</td>
           <td class="num" style="white-space:nowrap">{{ v.found_at|thai_date }}</td>
           <td>{% status_badge v.status %}</td>
         </tr>

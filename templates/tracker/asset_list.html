@@ -42,10 +42,11 @@
           <th scope="col">ประเภท / ระบบปฏิบัติการ</th>
           <th scope="col">ห้อง / พื้นที่</th>
           <th scope="col">IP Address</th>
-          <th scope="col" class="right">วิกฤต</th>
-          <th scope="col" class="right">สูง</th>
-          <th scope="col" class="right">ปานกลาง</th>
-          <th scope="col" class="right">ต่ำ</th>
+          <th scope="col" class="right" title="ระดับ 5">5 วิกฤต</th>
+          <th scope="col" class="right" title="ระดับ 4">4 สูง</th>
+          <th scope="col" class="right" title="ระดับ 3">3 ปานกลาง</th>
+          <th scope="col" class="right" title="ระดับ 2">2 ต่ำ</th>
+          <th scope="col" class="right" title="ระดับ 1">1 เล็กน้อย</th>
           <th scope="col">สถานะเครื่อง</th>
         </tr>
       </thead>
@@ -60,6 +61,7 @@
           <td class="right"><span class="count-chip {% if a.n_high %}high{% else %}zero{% endif %}">{{ a.n_high }}</span></td>
           <td class="right"><span class="count-chip {% if a.n_medium %}medium{% else %}zero{% endif %}">{{ a.n_medium }}</span></td>
           <td class="right"><span class="count-chip {% if a.n_low %}low{% else %}zero{% endif %}">{{ a.n_low }}</span></td>
+          <td class="right"><span class="count-chip {% if a.n_info %}info{% else %}zero{% endif %}">{{ a.n_info }}</span></td>
           <td>{% if a.is_active %}<span class="tag">ใช้งานอยู่</span>{% else %}<span class="tag">เลิกใช้งาน</span>{% endif %}</td>
         </tr>
       {% endfor %}

@@ -8,18 +8,19 @@
 |---|:-:|---|---|
 | `cve_id` | ✓ | `CVE-ปี-เลข` ไม่เกิน 20 ตัวอักษร (พิมพ์เล็กได้ ระบบแปลงให้) | `CVE-2024-38063` |
 | `title` | ✓ | ข้อความ | `Windows TCP/IP RCE` |
-| `severity` | ✓ | `critical` / `high` / `medium` / `low` | `critical` |
+| `severity` | ✓ | ตัวเลข `1`–`5` (5 = วิกฤต, 4 = สูง, 3 = ปานกลาง, 2 = ต่ำ, 1 = เล็กน้อย) หรือชื่อเดิม `critical` / `high` / `medium` / `low` / `info` | `5` |
 | `hostname` | ✓ | ต้องตรงกับชื่ออุปกรณ์ที่มีในระบบแล้ว (ไม่สนตัวพิมพ์เล็กใหญ่) | `LAB301-PC01` |
 | `cvss_score` |  | ตัวเลข 0–10 ใช้ `.` หรือ `,` เป็นจุดทศนิยมได้ | `9.8` |
 | `found_at` |  | `YYYY-MM-DD` (ค.ศ.) ห้ามเป็นวันในอนาคต ไม่ใส่ = วันนี้ | `2026-10-01` |
+| `category` |  | รหัสหรือชื่อประเภทช่องโหว่ที่เปิดใช้งาน (ไม่สนตัวพิมพ์เล็กใหญ่) ดูได้ในเมนู "ประเภทช่องโหว่" ว่าง = ไม่ระบุ | `rce` |
 | `description` |  | ข้อความ | |
 | `solution` |  | ข้อความ | `ติดตั้งแพตช์ KB5041578` |
 
 ## ตัวอย่าง CSV
 
 ```csv
-cve_id,title,severity,cvss_score,hostname,found_at,description,solution
-CVE-2024-38063,Windows TCP/IP IPv6 Remote Code Execution,critical,9.8,LAB301-PC01,2026-10-01,ช่องโหว่ในสแตก IPv6,ติดตั้งแพตช์ KB5041578
+cve_id,title,severity,cvss_score,hostname,found_at,category,description,solution
+CVE-2024-38063,Windows TCP/IP IPv6 Remote Code Execution,5,9.8,LAB301-PC01,2026-10-01,rce,ช่องโหว่ในสแตก IPv6,ติดตั้งแพตช์ KB5041578
 ```
 
 ถ้าแก้ไฟล์ใน Excel ให้บันทึกเป็น **CSV UTF-8 (Comma delimited)** ภาษาไทยจะไม่เพี้ยน
@@ -34,7 +35,8 @@ CVE-2024-38063,Windows TCP/IP IPv6 Remote Code Execution,critical,9.8,LAB301-PC0
     {
       "cve_id": "CVE-2024-38063",
       "title": "Windows TCP/IP IPv6 Remote Code Execution",
-      "severity": "critical",
+      "severity": 5,
+      "category": "rce",
       "cvss_score": 9.8,
       "hostname": "LAB301-PC01",
       "found_at": "2026-10-01"
@@ -48,6 +50,7 @@ CVE-2024-38063,Windows TCP/IP IPv6 Remote Code Execution,critical,9.8,LAB301-PC0
 ระบบจะข้ามแถวต่อไปนี้แล้วแจ้งเหตุผลพร้อมเลขบรรทัด (CSV) หรือลำดับรายการ (JSON) แถวอื่นยังนำเข้าตามปกติ
 
 - ไม่มีค่าในคอลัมน์บังคับ หรือรูปแบบ CVE / ระดับ / CVSS / วันที่ไม่ถูกต้อง
+- ระบุ `category` ที่ไม่มีในระบบหรือถูกปิดใช้งาน
 - ไม่พบ `hostname` ในระบบ → เพิ่มอุปกรณ์ในเมนู "อุปกรณ์" ก่อน
 - CVE เดียวกันบนเครื่องเดียวกันมีอยู่แล้ว (ไม่เขียนทับข้อมูลเดิม)
 

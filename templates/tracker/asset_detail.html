@@ -22,13 +22,14 @@
     {% if vulns %}
     <div class="table-wrap">
       <table class="data">
-        <thead><tr><th scope="col">ความรุนแรง</th><th scope="col">รหัส CVE</th><th scope="col">ชื่อช่องโหว่</th><th scope="col">วันที่พบ</th><th scope="col">สถานะ</th></tr></thead>
+        <thead><tr><th scope="col">ความรุนแรง</th><th scope="col">รหัส CVE</th><th scope="col">ชื่อช่องโหว่</th><th scope="col">ผู้รับผิดชอบ</th><th scope="col">วันที่พบ</th><th scope="col">สถานะ</th></tr></thead>
         <tbody>
         {% for v in vulns %}
           <tr>
             <td>{% severity_badge v.severity %}</td>
             <td><a class="row-link mono" href="{% url 'vuln_detail' v.pk %}">{{ v.cve_id }}</a></td>
-            <td>{{ v.title }}</td>
+            <td>{{ v.title }}<div class="small muted">{{ v.category.name|default:'ไม่ระบุประเภท' }}</div></td>
+            <td class="small">{% person v.assigned_to 'ยังไม่มอบหมาย' %}</td>
             <td class="num" style="white-space:nowrap">{{ v.found_at|thai_date }}</td>
             <td>{% status_badge v.status %}</td>
           </tr>
@@ -56,7 +57,7 @@
       <h2 class="section-title">ช่องโหว่ที่ยังไม่แก้ไข</h2>
       <ul class="legend" style="padding:8px 24px 20px">
         {% for s in severity %}
-        <li><span class="swatch {{ s.value }}"></span><span class="label">{{ s.label }}</span><b class="num">{{ s.count }}</b></li>
+        <li><span class="swatch {{ s.slug }}"></span><span class="label">{{ s.value }} · {{ s.label }}</span><b class="num">{{ s.count }}</b></li>
         {% endfor %}
       </ul>
     </div>

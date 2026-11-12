@@ -9,7 +9,7 @@
   </div>
   <div class="actions">
     <a class="btn btn-ghost" href="https://nvd.nist.gov/vuln/detail/{{ v.cve_id }}" target="_blank" rel="noopener noreferrer">ดูข้อมูลบน NVD ↗</a>
-    {% if can.edit_vulns %}<a class="btn btn-secondary" href="{% url 'vuln_edit' v.pk %}">{% icon 'edit' %}แก้ไข</a>{% endif %}
+    {% if can_work %}<a class="btn btn-secondary" href="{% url 'vuln_edit' v.pk %}">{% icon 'edit' %}แก้ไข</a>{% endif %}
     {% if can.delete_vulns %}<a class="btn btn-danger" href="{% url 'vuln_delete' v.pk %}">{% icon 'trash' %}ลบ</a>{% endif %}
   </div>
 </div>
@@ -18,7 +18,10 @@
   <div class="card">
     <dl class="facts">
       <dt>ระดับความรุนแรง</dt><dd>{% severity_badge v.severity %} <span class="muted small">CVSS {{ v.cvss_score|default_if_none:'-' }}</span></dd>
+      <dt>ประเภทช่องโหว่</dt><dd>{{ v.category.name|default:'ไม่ระบุ' }}{% if v.category.description %}<div class="small muted">{{ v.category.description }}</div>{% endif %}</dd>
       <dt>สถานะ</dt><dd>{% status_badge v.status %}</dd>
+      <dt>ผู้รับผิดชอบ</dt><dd>{% person v.assigned_to 'ยังไม่มอบหมาย' %}{% if v.assigned_to.department %}<div class="small muted">{{ v.assigned_to.department }}</div>{% endif %}</dd>
+      <dt>ผู้แก้ไข</dt><dd>{% if v.fixed_by %}{% person v.fixed_by %} <span class="small muted">เมื่อ {{ v.fixed_at|thai_date:True }}</span>{% elif v.status == 'fixed' %}<span class="muted">ไม่ทราบ (ข้อมูลเก่า)</span>{% else %}<span class="muted">ยังไม่แก้ไขเสร็จ</span>{% endif %}</dd>
       <dt>อุปกรณ์ที่ได้รับผลกระทบ</dt>
       <dd>
         {% if can.view_assets %}<a class="mono" href="{% url 'asset_detail' v.asset_id %}">{{ v.asset.hostname }}</a>{% else %}<span class="mono">{{ v.asset.hostname }}</span>{% endif %}
@@ -35,7 +38,37 @@
   </div>
 
   <div style="display:flex;flex-direction:column;gap:16px">
-    {% if can.edit_vulns %}
+    {% if assign_form %}
+    <form class="card" method="post" action="{% url 'vuln_assign' v.pk %}">
+      {% csrf_token %}
+      <h2 class="section-title">มอบหมายผู้รับผิดชอบ</h2>
+      <div style="padding:4px 24px 20px;display:flex;flex-direction:column;gap:12px">
+        <div class="form-field">
+          <label for="{{ assign_form.assigned_to.id_for_label }}">{{ assign_form.assigned_to.label }}</label>
+          {{ assign_form.assigned_to }}
+        </div>
+        <div class="form-field">
+          <label for="{{ assign_form.note.id_for_label }}">{{ assign_form.note.label }}</label>
+          {{ assign_form.note }}
+        </div>
+        <button type="submit" class="btn btn-secondary">บันทึกผู้รับผิดชอบ</button>
+      </div>
+    </form>
+    {% elif can.edit_vulns and v.status != 'fixed' %}
+    <div class="card card-pad" style="display:flex;flex-direction:column;gap:10px">
+      {% if not v.assigned_to %}
+        <p class="small" style="margin:0">ยังไม่มีผู้รับผิดชอบรายการนี้</p>
+        <form method="post" action="{% url 'vuln_assign' v.pk %}">{% csrf_token %}<input type="hidden" name="action" value="claim"><button class="btn btn-primary">รับงานนี้</button></form>
+      {% elif v.assigned_to_id == user.pk %}
+        <p class="small" style="margin:0">คุณเป็นผู้รับผิดชอบรายการนี้</p>
+        <form method="post" action="{% url 'vuln_assign' v.pk %}">{% csrf_token %}<input type="hidden" name="action" value="release"><button class="btn btn-ghost btn-sm">คืนงาน</button></form>
+      {% else %}
+        <p class="small" style="margin:0">{% icon 'lock' %} มอบหมายให้ {{ v.assigned_to.display_name }} แล้ว — เปลี่ยนสถานะได้เฉพาะผู้รับผิดชอบหรือผู้ดูแลระบบ</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if can_work %}
     <form class="card" method="post" action="{% url 'vuln_status' v.pk %}">
       {% csrf_token %}
       {{ status_form.from_status }}
@@ -51,7 +84,7 @@
           <label for="{{ status_form.note.id_for_label }}">{{ status_form.note.label }}</label>
           {{ status_form.note }}
         </div>
-        <p class="small muted" style="margin:0">การเปลี่ยนแปลงจะถูกบันทึกในประวัติพร้อมชื่อผู้แก้ไข</p>
+        <p class="small muted" style="margin:0">การเปลี่ยนแปลงจะถูกบันทึกในประวัติพร้อมชื่อผู้แก้ไข · เมื่อเลือก "แก้ไขแล้ว" ระบบจะบันทึกคุณเป็นผู้แก้ไข</p>
         <button type="submit" class="btn btn-primary">บันทึกสถานะ</button>
       </div>
     </form>
@@ -63,7 +96,7 @@
         {% for h in history %}
         <li>
           <span class="node {{ h.new_status }}"></span>
-          <div>{% if h.old_status %}{{ h.get_old_status_display }} → {% endif %}<b>{{ h.get_new_status_display }}</b></div>
+          <div>{% if h.old_status == h.new_status %}<b>เปลี่ยนผู้รับผิดชอบ</b>{% else %}{% if h.old_status %}{{ h.get_old_status_display }} → {% endif %}<b>{{ h.get_new_status_display }}</b>{% endif %}</div>
           <div class="meta">{{ h.changed_at|thai_date:True }} · {{ h.changed_by.display_name|default:'ระบบ' }}</div>
           {% if h.note %}<div class="note">{{ h.note }}</div>{% endif %}
         </li>

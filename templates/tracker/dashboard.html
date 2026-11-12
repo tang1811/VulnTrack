@@ -4,7 +4,7 @@
 <div class="page-head">
   <div class="titles">
     <h1>ภาพรวมช่องโหว่</h1>
-    <p>วิทยาลัยเทคโนโลยีแหลมฉบัง EEC · อัปเดตล่าสุด {{ last_update|thai_date:True }}</p>
+    <p>วิทยาลัยเทคโนโลยีแหลมฉบัง EEC · อัปเดตล่าสุด {{ last_update|thai_date:True }}{% if can.edit_vulns %} · <a href="{% url 'vuln_list' %}?assignee=me&status=pending">งานของฉันที่ยังค้าง {{ my_pending }} รายการ</a> · ยังไม่มีผู้รับผิดชอบ <a href="{% url 'vuln_list' %}?assignee=none&status=pending">{{ unassigned }}</a>{% endif %}</p>
   </div>
   <div class="actions">
     {% if can.view_vulns %}
@@ -19,14 +19,14 @@
 </div>
 
 <section class="grid grid-kpi" aria-label="ตัวเลขสรุป">
-  {% if can.view_vulns %}<a href="{% url 'vuln_list' %}?severity=critical&status=pending" class="card kpi critical">{% else %}<div class="card kpi critical">{% endif %}
-    <span class="kpi-label">{% icon 'shield-alert' %}ระดับวิกฤตที่ยังค้าง</span>
+  {% if can.view_vulns %}<a href="{% url 'vuln_list' %}?severity=5&status=pending" class="card kpi critical">{% else %}<div class="card kpi critical">{% endif %}
+    <span class="kpi-label">{% icon 'shield-alert' %}ระดับ 5 วิกฤตที่ยังค้าง</span>
     <span class="kpi-value">{{ kpi.critical }}</span>
     <span class="kpi-note">ต้องแก้ไขเป็นอันดับแรก</span>
   {% if can.view_vulns %}</a>{% else %}</div>{% endif %}
 
-  {% if can.view_vulns %}<a href="{% url 'vuln_list' %}?severity=high&status=pending" class="card kpi high">{% else %}<div class="card kpi high">{% endif %}
-    <span class="kpi-label">{% icon 'alert' %}ระดับสูงที่ยังค้าง</span>
+  {% if can.view_vulns %}<a href="{% url 'vuln_list' %}?severity=4&status=pending" class="card kpi high">{% else %}<div class="card kpi high">{% endif %}
+    <span class="kpi-label">{% icon 'alert' %}ระดับ 4 สูงที่ยังค้าง</span>
     <span class="kpi-value">{{ kpi.high }}</span>
     <span class="kpi-note">ควรแก้ไขภายใน 30 วัน</span>
   {% if can.view_vulns %}</a>{% else %}</div>{% endif %}
@@ -55,9 +55,9 @@
       <ul class="legend">
         {% for s in severity %}
         <li>
-          <span class="swatch {{ s.value }}"></span>
+          <span class="swatch {{ s.slug }}"></span>
           {% if can.view_vulns %}<a href="{% url 'vuln_list' %}?severity={{ s.value }}&status=pending">{% endif %}
-          <span class="label">{{ s.label }}</span>
+          <span class="label">{{ s.value }} · {{ s.label }}</span>
           <b class="num">{{ s.count }}</b>
           <span class="muted small num" style="width:44px;text-align:right">{{ s.count|percent_of:kpi.pending }}%</span>
           {% if can.view_vulns %}</a>{% endif %}
@@ -77,7 +77,7 @@
   <div class="card">
     <div class="card-head">
       <div>
-        <h2>ช่องโหว่ระดับวิกฤต / สูง ที่ต้องแก้ไขก่อน</h2>
+        <h2>ช่องโหว่ระดับ 5 วิกฤต / 4 สูง ที่ต้องแก้ไขก่อน</h2>
         <p>เรียงตามความรุนแรงและคะแนน CVSS</p>
       </div>
       {% if can.view_vulns %}<a class="small" href="{% url 'vuln_list' %}?status=pending">ดูทั้งหมด →</a>{% endif %}
@@ -85,7 +85,7 @@
     {% if priority %}
     <div class="table-wrap">
       <table class="data">
-        <thead><tr><th scope="col">ความรุนแรง</th><th scope="col">ช่องโหว่</th><th scope="col">อุปกรณ์</th><th scope="col">สถานะ</th>{% if can.edit_vulns %}<th scope="col" class="right">ดำเนินการ</th>{% endif %}</tr></thead>
+        <thead><tr><th scope="col">ความรุนแรง</th><th scope="col">ช่องโหว่</th><th scope="col">อุปกรณ์</th><th scope="col">ผู้รับผิดชอบ</th><th scope="col">สถานะ</th>{% if can.edit_vulns %}<th scope="col" class="right">ดำเนินการ</th>{% endif %}</tr></thead>
         <tbody>
         {% for v in priority %}
           <tr>
@@ -95,9 +95,11 @@
               <div class="small muted">{{ v.title }}</div>
             </td>
             <td><div class="host"><b class="mono" style="font-weight:500">{{ v.asset.hostname }}</b><span>{{ v.asset.location }}</span></div></td>
+            <td class="small">{% person v.assigned_to 'ยังไม่มอบหมาย' %}</td>
             <td>{% status_badge v.status %}</td>
             {% if can.edit_vulns %}
             <td class="right">
+              {% if user|can_work:v %}
               <form method="post" action="{% url 'vuln_status' v.pk %}">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{% url 'dashboard' %}">
@@ -110,6 +112,7 @@
                   <button class="btn btn-secondary btn-sm">แก้ไขเสร็จแล้ว</button>
                 {% endif %}
               </form>
+              {% else %}<span class="small muted">งานของผู้อื่น</span>{% endif %}
             </td>
             {% endif %}
           </tr>
@@ -126,6 +129,41 @@
     <h2 style="margin-bottom:12px">แนวโน้ม 6 เดือนล่าสุด</h2>
     <div class="chart-box" style="height:300px"><canvas id="chart-trend" role="img" aria-label="จำนวนช่องโหว่ที่พบใหม่และแก้ไขแล้วในแต่ละเดือน"></canvas></div>
   </div>
+</section>
+
+<section class="card" aria-labelledby="latest-title">
+  <div class="card-head">
+    <div>
+      <h2 id="latest-title">ช่องโหว่ที่พบล่าสุด</h2>
+      <p>เรียงตามวันที่พบ ใหม่สุดอยู่บน · ทุกระดับความรุนแรงและทุกสถานะ</p>
+    </div>
+    {% if can.view_vulns %}<a class="small" href="{% url 'vuln_list' %}?sort=newest">ดูทั้งหมด →</a>{% endif %}
+  </div>
+  {% if latest %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col">วันที่พบ</th><th scope="col">ความรุนแรง</th><th scope="col">ช่องโหว่</th><th scope="col">ประเภท</th><th scope="col">อุปกรณ์</th><th scope="col">ผู้รับผิดชอบ / ผู้แก้ไข</th><th scope="col">สถานะ</th></tr></thead>
+      <tbody>
+      {% for v in latest %}
+        <tr>
+          <td class="num" style="white-space:nowrap">{{ v.found_at|thai_date }}</td>
+          <td>{% severity_badge v.severity %}</td>
+          <td>
+            {% if can.view_vulns %}<a class="row-link mono" href="{% url 'vuln_detail' v.pk %}">{{ v.cve_id }}</a>{% else %}<span class="mono">{{ v.cve_id }}</span>{% endif %}
+            <div class="small muted">{{ v.title }}</div>
+          </td>
+          <td class="small">{{ v.category.name|default:'ไม่ระบุ' }}</td>
+          <td><div class="host"><b class="mono" style="font-weight:500">{{ v.asset.hostname }}</b><span>{{ v.asset.location }}</span></div></td>
+          <td class="small">{% if v.status == 'fixed' and v.fixed_by %}แก้โดย {% person v.fixed_by %}{% else %}{% person v.assigned_to 'ยังไม่มอบหมาย' %}{% endif %}</td>
+          <td>{% status_badge v.status %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">{% icon 'inbox' %}<b>ยังไม่มีช่องโหว่ในระบบ</b></div>
+  {% endif %}
 </section>
 
 {{ chart|json_script:'chart-data' }}

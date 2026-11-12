@@ -2,7 +2,7 @@ from django import template
 from django.utils import timezone
 from django.utils.html import format_html
 
-from tracker.models import Severity, Status
+from tracker.models import SEVERITY_SLUG, Severity, Status
 
 register = template.Library()
 
@@ -13,6 +13,7 @@ SEVERITY_ICON = {
     'high': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/>',
     'medium': '<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>',
     'low': '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>',
+    'info': '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
 }
 
 
@@ -50,11 +51,25 @@ def icon(name, cls=''):
 
 @register.simple_tag
 def severity_badge(value):
-    label = Severity(value).label if value in Severity.values else value
+    """ป้ายระดับความรุนแรง แสดงทั้งตัวเลข 1-5 และชื่อระดับ เช่น [5 วิกฤต]"""
+    try:
+        level = Severity(int(value))
+    except (TypeError, ValueError):
+        return value
+    slug = SEVERITY_SLUG[level]
     return format_html(
-        '<span class="badge sev-{}"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true">{}</svg>{}</span>',
-        value, format_html(SEVERITY_ICON.get(value, '')), label,
+        '<span class="badge sev-{}" title="ระดับ {} จาก 5"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true">{}</svg>'
+        '<span class="sev-num">{}</span>{}</span>',
+        slug, level.value, format_html(SEVERITY_ICON[slug]), level.value, level.label,
     )
+
+
+@register.filter
+def severity_slug(value):
+    try:
+        return SEVERITY_SLUG[Severity(int(value))]
+    except (TypeError, ValueError):
+        return ''
 
 
 @register.simple_tag
@@ -83,3 +98,19 @@ def page_url(querystring, number):
 @register.filter
 def percent_of(part, whole):
     return round(part * 100 / whole) if whole else 0
+
+
+@register.filter
+def can_work(user, vuln):
+    """{% if user|can_work:v %} — แก้ไข/เปลี่ยนสถานะรายการนี้ได้หรือไม่ (สิทธิ์ระดับรายการ)"""
+    from accounts.roles import can_work_on
+
+    return can_work_on(user, vuln)
+
+
+@register.simple_tag
+def person(user, empty='-'):
+    if not user:
+        return format_html('<span class="muted">{}</span>', empty)
+    return format_html('<span class="person"><span class="avatar-sm" aria-hidden="true">{}</span>{}</span>',
+                       user.initial, user.display_name)

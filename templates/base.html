@@ -42,11 +42,14 @@
       {% endif %}
     </div>
 
-    {% if can.view_history or can.manage_users %}
+    {% if can.view_history or can.manage_users or can.manage_categories %}
     <div class="nav-group">
       <span class="nav-title">ผู้ดูแลระบบ</span>
       {% if can.view_history %}
       <a class="nav-link" href="{% url 'history' %}" {% if section == 'history' %}aria-current="page"{% endif %}>{% icon 'history' %}ประวัติการเปลี่ยนสถานะ</a>
+      {% endif %}
+      {% if can.manage_categories %}
+      <a class="nav-link" href="{% url 'category_list' %}" {% if section == 'categories' %}aria-current="page"{% endif %}>{% icon 'report' %}ประเภทช่องโหว่</a>
       {% endif %}
       {% if can.manage_users %}
       <a class="nav-link" href="{% url 'user_list' %}" {% if section == 'users' %}aria-current="page"{% endif %}>{% icon 'users' %}จัดการผู้ใช้</a>

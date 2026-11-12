@@ -65,10 +65,11 @@
       <ul style="margin:0;padding-left:20px">
         <li><b class="mono">cve_id</b> — เช่น CVE-2024-3094</li>
         <li><b class="mono">title</b> — ชื่อช่องโหว่</li>
-        <li><b class="mono">severity</b> — critical, high, medium, low</li>
+        <li><b class="mono">severity</b> — ตัวเลข 1-5 (5 = วิกฤต, 4 = สูง, 3 = ปานกลาง, 2 = ต่ำ, 1 = เล็กน้อย) หรือ critical, high, medium, low, info</li>
         <li><b class="mono">hostname</b> — ชื่อเครื่องที่มีในระบบ</li>
         <li><span class="mono">cvss_score</span> — 0.0 ถึง 10.0</li>
         <li><span class="mono">found_at</span> — YYYY-MM-DD (ว่าง = วันนี้)</li>
+        <li><span class="mono">category</span> — รหัสหรือชื่อประเภทช่องโหว่ เช่น <span class="mono">rce</span> (ว่างได้)</li>
         <li><span class="mono">description</span>, <span class="mono">solution</span></li>
       </ul>
       <p style="margin:0">ไฟล์ JSON ใช้คีย์เดียวกัน เป็น array ของ object หรือ <code>{"vulnerabilities": [...]}</code></p>

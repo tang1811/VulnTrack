@@ -15,6 +15,7 @@
       <select id="h-st" name="status">
         <option value="">ทั้งหมด</option>
         {% for v, l in statuses %}<option value="{{ v }}" {% if status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        <option value="assign" {% if status == 'assign' %}selected{% endif %}>เปลี่ยนผู้รับผิดชอบ</option>
       </select>
     </div>
     <button type="submit" class="btn btn-primary">กรอง</button>
@@ -28,7 +29,7 @@
           <td class="num" style="white-space:nowrap">{{ h.changed_at|thai_date:True }}</td>
           <td><a class="row-link mono" href="{% url 'vuln_detail' h.vulnerability_id %}">{{ h.vulnerability.cve_id }}</a></td>
           <td class="mono small">{{ h.vulnerability.asset.hostname }}</td>
-          <td style="white-space:nowrap">{% if h.old_status %}{% status_badge h.old_status %} → {% else %}<span class="tag">สร้างใหม่</span> → {% endif %}{% status_badge h.new_status %}</td>
+          <td style="white-space:nowrap">{% if h.old_status == h.new_status %}<span class="tag">เปลี่ยนผู้รับผิดชอบ</span>{% else %}{% if h.old_status %}{% status_badge h.old_status %} → {% else %}<span class="tag">สร้างใหม่</span> → {% endif %}{% status_badge h.new_status %}{% endif %}</td>
           <td>{{ h.changed_by.display_name|default:'-' }}</td>
           <td class="small">{{ h.note|default:'-'|truncatechars:80 }}</td>
         </tr>

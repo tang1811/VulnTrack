@@ -3,7 +3,7 @@
   var el = document.getElementById('chart-data');
   if (!el || !window.Chart) return;
   var data = JSON.parse(el.textContent);
-  var SEV = { critical: '#B91C1C', high: '#EA580C', medium: '#CA8A04', low: '#2563EB' };
+  var SEV = { critical: '#B91C1C', high: '#EA580C', medium: '#CA8A04', low: '#2563EB', info: '#64748B' };
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   Chart.defaults.font.family = '"IBM Plex Sans Thai", "Noto Sans Thai", system-ui, sans-serif';
@@ -17,7 +17,7 @@
       type: 'doughnut',
       data: {
         labels: data.severity.labels,
-        datasets: [{ data: data.severity.data, backgroundColor: Object.values(SEV), borderColor: '#FFFFFF', borderWidth: 2 }]
+        datasets: [{ data: data.severity.data, backgroundColor: data.severity.keys.map(function (k) { return SEV[k]; }), borderColor: '#FFFFFF', borderWidth: 2 }]
       },
       options: { cutout: '65%', maintainAspectRatio: false, plugins: { legend: { display: false } } }
     });

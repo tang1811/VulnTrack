@@ -3,15 +3,37 @@ from django.core.validators import MaxValueValidator, MinValueValidator, RegexVa
 from django.db import models
 
 
-class Severity(models.TextChoices):
-    CRITICAL = 'critical', 'วิกฤต'
-    HIGH = 'high', 'สูง'
-    MEDIUM = 'medium', 'ปานกลาง'
-    LOW = 'low', 'ต่ำ'
+class Severity(models.IntegerChoices):
+    """ระดับความรุนแรง 1-5 ตัวเลขมาก = รุนแรงมาก"""
+    CRITICAL = 5, 'วิกฤต'
+    HIGH = 4, 'สูง'
+    MEDIUM = 3, 'ปานกลาง'
+    LOW = 2, 'ต่ำ'
+    INFO = 1, 'เล็กน้อย'
 
 
 # ลำดับความรุนแรง ใช้เรียงข้อมูลจากรุนแรงมากไปน้อย
-SEVERITY_ORDER = [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW]
+SEVERITY_ORDER = [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO]
+
+# ชื่อภาษาอังกฤษของแต่ละระดับ ใช้เป็นชื่อ class CSS/สีกราฟ และรับค่าจากไฟล์นำเข้าแบบเดิม
+SEVERITY_SLUG = {
+    Severity.CRITICAL: 'critical', Severity.HIGH: 'high', Severity.MEDIUM: 'medium',
+    Severity.LOW: 'low', Severity.INFO: 'info',
+}
+
+
+def severity_from_cvss(score):
+    """แปลงคะแนน CVSS เป็นระดับ 1-5 ตามเกณฑ์ CVSS v3 (0.0 = เล็กน้อย)"""
+    score = float(score)
+    if score >= 9.0:
+        return Severity.CRITICAL
+    if score >= 7.0:
+        return Severity.HIGH
+    if score >= 4.0:
+        return Severity.MEDIUM
+    if score > 0:
+        return Severity.LOW
+    return Severity.INFO
 
 
 class Status(models.TextChoices):
@@ -49,13 +71,42 @@ class Asset(models.Model):
 cve_validator = RegexValidator(r'^CVE-\d{4}-\d{4,}$', 'รูปแบบต้องเป็น CVE-ปี-เลข เช่น CVE-2024-3094')
 
 
+class VulnCategory(models.Model):
+    """ประเภทช่องโหว่ ผู้ดูแลระบบเพิ่ม/แก้ไขได้ที่เมนู "ประเภทช่องโหว่" """
+
+    code = models.SlugField(
+        'รหัสประเภท', max_length=40, unique=True,
+        help_text='ภาษาอังกฤษตัวเล็ก ตัวเลข และ - ใช้อ้างอิงในไฟล์นำเข้า เช่น rce',
+    )
+    name = models.CharField('ชื่อประเภท', max_length=100, unique=True)
+    description = models.CharField('คำอธิบาย', max_length=255, blank=True)
+    sort_order = models.PositiveSmallIntegerField('ลำดับการแสดง', default=100)
+    is_active = models.BooleanField('ใช้งานอยู่', default=True,
+                                    help_text='ปิดไว้ถ้าไม่ต้องการให้เลือกประเภทนี้อีก (ข้อมูลเดิมยังอยู่)')
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name = 'ประเภทช่องโหว่'
+        verbose_name_plural = 'ประเภทช่องโหว่'
+
+    def __str__(self):
+        return self.name
+
+
 class Vulnerability(models.Model):
     """ช่องโหว่ 1 รายการ = CVE 1 ตัวที่พบบนอุปกรณ์ 1 เครื่อง"""
 
     cve_id = models.CharField('รหัส CVE', max_length=20, validators=[cve_validator])
     title = models.CharField('ชื่อช่องโหว่', max_length=255)
     description = models.TextField('รายละเอียด', blank=True)
-    severity = models.CharField('ระดับความรุนแรง', max_length=10, choices=Severity.choices)
+    severity = models.PositiveSmallIntegerField(
+        'ระดับความรุนแรง', choices=Severity.choices,
+        help_text='5 = วิกฤต, 4 = สูง, 3 = ปานกลาง, 2 = ต่ำ, 1 = เล็กน้อย',
+    )
+    category = models.ForeignKey(
+        VulnCategory, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='vulnerabilities', verbose_name='ประเภทช่องโหว่',
+    )
     cvss_score = models.DecimalField(
         'คะแนน CVSS', max_digits=3, decimal_places=1, null=True, blank=True,
         validators=[MinValueValidator(0), MaxValueValidator(10)],
@@ -65,6 +116,15 @@ class Vulnerability(models.Model):
     solution = models.TextField('วิธีแก้ไข', blank=True)
     found_at = models.DateField('วันที่พบ')
     fixed_at = models.DateTimeField('วันที่แก้ไขเสร็จ', null=True, blank=True)
+    # ผู้รับผิดชอบ = คนที่ได้รับมอบหมายให้แก้ / ผู้แก้ไข = คนที่เปลี่ยนสถานะเป็น "แก้ไขแล้ว" (ระบบบันทึกเอง)
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='assigned_vulnerabilities', verbose_name='ผู้รับผิดชอบ',
+    )
+    fixed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='fixed_vulnerabilities', verbose_name='ผู้แก้ไข',
+    )
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -82,10 +142,15 @@ class Vulnerability(models.Model):
         indexes = [
             models.Index(fields=['status', 'severity']),
             models.Index(fields=['found_at']),
+            models.Index(fields=['assigned_to', 'status']),
         ]
 
     def __str__(self):
         return f'{self.cve_id} @ {self.asset}'
+
+    @property
+    def severity_slug(self):
+        return SEVERITY_SLUG.get(self.severity, '')
 
 
 class StatusHistory(models.Model):

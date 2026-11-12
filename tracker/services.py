@@ -8,14 +8,20 @@ from datetime import date
 from django.db import DatabaseError, transaction
 from django.utils import timezone
 
-from .models import Asset, ImportLog, Severity, Status, StatusHistory, Vulnerability, cve_validator
+from accounts.roles import ASSIGNABLE_ROLES, can_work_on
 
-IMPORT_COLUMNS = ['cve_id', 'title', 'severity', 'cvss_score', 'hostname', 'found_at', 'description', 'solution']
+from .models import (SEVERITY_SLUG, Asset, ImportLog, Severity, Status, StatusHistory, Vulnerability, VulnCategory,
+                     cve_validator)
+
+IMPORT_COLUMNS = ['cve_id', 'title', 'severity', 'cvss_score', 'hostname', 'found_at', 'category', 'description', 'solution']
 REQUIRED_COLUMNS = ['cve_id', 'title', 'severity', 'hostname']
 CVE_MAX_LENGTH = Vulnerability._meta.get_field('cve_id').max_length
 
 # ผลลัพธ์ของ change_status
-CHANGED, UNCHANGED, CONFLICT = 'changed', 'unchanged', 'conflict'
+CHANGED, UNCHANGED, CONFLICT, FORBIDDEN = 'changed', 'unchanged', 'conflict', 'forbidden'
+
+# ค่าที่รับได้ในคอลัมน์ severity ของไฟล์นำเข้า: ตัวเลข 1-5 หรือชื่อภาษาอังกฤษแบบเดิม
+SEVERITY_INPUT = {str(int(s)): s for s in Severity} | {slug: s for s, slug in SEVERITY_SLUG.items()}
 
 
 @transaction.atomic
@@ -23,8 +29,12 @@ def change_status(vuln, new_status, user, note='', expected_status=None):
     """
     เปลี่ยนสถานะช่องโหว่และบันทึกประวัติในธุรกรรมเดียวกัน
     expected_status = สถานะที่ผู้ใช้เห็นบนหน้าจอ ถ้ามีคนเปลี่ยนไปก่อนแล้วจะไม่ทับ (คืนค่า CONFLICT)
+    ตรวจสิทธิ์ระดับรายการซ้ำหลังล็อกแถว กันกรณีงานถูกมอบหมายให้คนอื่นระหว่างที่เปิดหน้าค้างไว้ (คืนค่า FORBIDDEN)
+    ถ้าเจ้าหน้าที่เริ่มทำงานที่ยังไม่มีผู้รับผิดชอบ ระบบจะตั้งให้เป็นผู้รับผิดชอบเอง
     """
     vuln = Vulnerability.objects.select_for_update().get(pk=vuln.pk)
+    if not can_work_on(user, vuln):
+        return FORBIDDEN, vuln
     if expected_status and vuln.status != expected_status:
         return CONFLICT, vuln
     if new_status not in Status.values or new_status == vuln.status:
@@ -32,12 +42,47 @@ def change_status(vuln, new_status, user, note='', expected_status=None):
     old_status = vuln.status
     vuln.status = new_status
     vuln.fixed_at = timezone.now() if new_status == Status.FIXED else None
-    vuln.save(update_fields=['status', 'fixed_at', 'updated_at'])
+    vuln.fixed_by = user if new_status == Status.FIXED else None
+    fields = ['status', 'fixed_at', 'fixed_by', 'updated_at']
+    if vuln.assigned_to_id is None and new_status != Status.OPEN and user.role in ASSIGNABLE_ROLES:
+        vuln.assigned_to = user
+        fields.append('assigned_to')
+    vuln.save(update_fields=fields)
     StatusHistory.objects.create(
         vulnerability=vuln, old_status=old_status, new_status=new_status,
         note=note, changed_by=user, changed_at=timezone.now(),
     )
     return CHANGED, vuln
+
+
+_ANY = object()
+
+
+@transaction.atomic
+def assign(vuln, assignee, user, note='', only_if_unassigned=False, expected_assignee_id=_ANY, allow_fixed=True):
+    """
+    เปลี่ยนผู้รับผิดชอบและบันทึกลงประวัติ (assignee=None = ยกเลิกการมอบหมาย) คืนค่า True ถ้ามีการเปลี่ยน
+    only_if_unassigned: ใช้ตอน "รับงาน" ถ้ามีคนรับไปก่อนแล้ว (หลังล็อกแถว) จะไม่ทับ
+    expected_assignee_id: ใช้ตอน "คืนงาน" ต้องยังเป็นของคนนี้อยู่จึงจะเปลี่ยน
+    allow_fixed=False: ไม่เปลี่ยนถ้างานแก้ไขเสร็จแล้ว (ตรวจหลังล็อกแถว)
+    """
+    vuln = Vulnerability.objects.select_for_update().get(pk=vuln.pk)
+    if not allow_fixed and vuln.status == Status.FIXED:
+        return False
+    if only_if_unassigned and vuln.assigned_to_id is not None:
+        return False
+    if expected_assignee_id is not _ANY and vuln.assigned_to_id != expected_assignee_id:
+        return False
+    if vuln.assigned_to_id == getattr(assignee, 'pk', None):
+        return False
+    vuln.assigned_to = assignee
+    vuln.save(update_fields=['assigned_to', 'updated_at'])
+    text = f'มอบหมายให้ {assignee.display_name}' if assignee else 'ยกเลิกผู้รับผิดชอบ'
+    StatusHistory.objects.create(
+        vulnerability=vuln, old_status=vuln.status, new_status=vuln.status,
+        note=f'{text} — {note}' if note else text, changed_by=user, changed_at=timezone.now(),
+    )
+    return True
 
 
 def record_created(vuln, user, note='บันทึกช่องโหว่เข้าระบบ'):
@@ -88,9 +133,9 @@ def _parse_row(row):
     if len(clean['cve_id']) > CVE_MAX_LENGTH:
         raise ValueError(f'cve_id ยาวเกิน {CVE_MAX_LENGTH} ตัวอักษร')
     cve_validator(clean['cve_id'])
-    severity = clean['severity'].lower()
-    if severity not in Severity.values:
-        raise ValueError(f'severity "{clean["severity"]}" ไม่ถูกต้อง (ใช้ critical, high, medium, low)')
+    severity = SEVERITY_INPUT.get(clean['severity'].lower())
+    if severity is None:
+        raise ValueError(f'severity "{clean["severity"]}" ไม่ถูกต้อง (ใช้ 1-5 หรือ critical, high, medium, low, info)')
     clean['severity'] = severity
     if clean['cvss_score']:
         try:
@@ -118,6 +163,10 @@ def import_scan_file(uploaded, user):
     """นำเข้าไฟล์ CSV/JSON ข้ามแถวที่ผิดรูปแบบหรือซ้ำ แล้วคืนค่า ImportLog"""
     rows = _read_rows(uploaded)
     assets = {a.hostname.lower(): a for a in Asset.objects.all()}
+    # อ้างอิงประเภทได้ทั้งรหัส (เช่น rce) และชื่อ เฉพาะประเภทที่เปิดใช้งาน
+    # รหัสมาก่อนชื่อเสมอ กันชื่อของประเภทหนึ่งไปตรงกับรหัสของอีกประเภทแล้วจับคู่ผิด
+    active = list(VulnCategory.objects.filter(is_active=True))
+    categories = {c.name.lower(): c for c in active} | {c.code.lower(): c for c in active}
     created, skipped, errors = 0, 0, []
     with transaction.atomic():
         for where, row in rows:
@@ -133,13 +182,20 @@ def import_scan_file(uploaded, user):
                 errors.append(f'{where}: ไม่พบอุปกรณ์ชื่อ {data["hostname"]} ในระบบ')
                 skipped += 1
                 continue
+            category = None
+            if data['category']:
+                category = categories.get(data['category'].lower())
+                if category is None:
+                    errors.append(f'{where}: ไม่พบประเภทช่องโหว่ "{data["category"]}" ในระบบ')
+                    skipped += 1
+                    continue
             try:
                 # savepoint แยกต่อแถว แถวที่บันทึกไม่ได้จะไม่ทำให้ทั้งไฟล์ล้มเหลว
                 with transaction.atomic():
                     vuln, is_new = Vulnerability.objects.get_or_create(
                         cve_id=data['cve_id'], asset=asset,
                         defaults={
-                            'title': data['title'][:255], 'severity': data['severity'],
+                            'title': data['title'][:255], 'severity': data['severity'], 'category': category,
                             'cvss_score': data['cvss_score'], 'found_at': data['found_at'],
                             'description': data['description'], 'solution': data['solution'], 'created_by': user,
                         },

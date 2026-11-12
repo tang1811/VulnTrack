@@ -9,7 +9,7 @@
   </div>
   <form method="post" class="form-foot">
     {% csrf_token %}
-    <a class="btn btn-secondary" href="{% url cancel_name cancel_pk %}">ยกเลิก</a>
+    <a class="btn btn-secondary" href="{% if cancel_pk %}{% url cancel_name cancel_pk %}{% else %}{% url cancel_name %}{% endif %}">ยกเลิก</a>
     {% if not blocked %}<button type="submit" class="btn btn-danger">{% icon 'trash' %}ลบถาวร</button>{% endif %}
   </form>
 </div>

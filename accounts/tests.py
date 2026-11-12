@@ -28,6 +28,8 @@ PAGES = [
     ('history', {}, {ADMIN}),
     ('user_list', {}, {ADMIN}),
     ('user_create', {}, {ADMIN}),
+    ('category_list', {}, {ADMIN}),
+    ('category_create', {}, {ADMIN}),
 ]
 
 # ข้อความเมนูที่ต้องแสดง/ซ่อนตามบทบาท
@@ -38,6 +40,7 @@ MENU = {
     'href="/reports/"': {ADMIN, EXEC},
     'href="/history/"': {ADMIN},
     'href="/users/"': {ADMIN},
+    'href="/categories/"': {ADMIN},
 }
 
 
@@ -46,7 +49,7 @@ class RoleAccessTests(TestCase):
     def setUpTestData(cls):
         cls.users = {role: User.objects.create_user(f'u_{role}', password='x-Pass-12345', role=role) for role in (ADMIN, TECH, EXEC)}
         cls.asset = Asset.objects.create(hostname='LAB301-PC01', location='ห้องปฏิบัติการ 301')
-        cls.vuln = Vulnerability.objects.create(cve_id='CVE-2024-3094', title='XZ', severity='critical',
+        cls.vuln = Vulnerability.objects.create(cve_id='CVE-2024-3094', title='XZ', severity=5,
                                                 asset=cls.asset, found_at=date(2026, 9, 1))
 
     def url(self, name, kwargs):

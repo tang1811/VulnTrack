@@ -13,7 +13,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import User
-from tracker.models import Asset, ImportLog, Status, StatusHistory, Vulnerability
+from tracker.models import Asset, ImportLog, Severity, Status, StatusHistory, Vulnerability, VulnCategory, severity_from_cvss
 
 DEMO_PASSWORD = 'Eec@2569demo'
 
@@ -130,14 +130,24 @@ CVES = [
 ]
 
 
-def severity_from_cvss(score):
-    if score >= 9.0:
-        return 'critical'
-    if score >= 7.0:
-        return 'high'
-    if score >= 4.0:
-        return 'medium'
-    return 'low'
+# ประเภทของ CVE ตัวอย่าง (รหัสประเภทจาก migration 0002)
+CATEGORY_OF = {
+    'CVE-2024-38063': 'rce', 'CVE-2024-21413': 'rce', 'CVE-2023-21716': 'rce', 'CVE-2023-36884': 'rce',
+    'CVE-2024-30088': 'privilege-escalation', 'CVE-2024-21338': 'privilege-escalation',
+    'CVE-2024-38112': 'spoofing', 'CVE-2024-21412': 'security-bypass', 'CVE-2023-36025': 'security-bypass',
+    'CVE-2024-38178': 'rce', 'CVE-2023-4863': 'rce', 'CVE-2024-7971': 'rce', 'CVE-2023-38831': 'rce',
+    'CVE-2023-24932': 'security-bypass', 'CVE-2024-20666': 'security-bypass', 'CVE-2024-21320': 'spoofing',
+    'CVE-2024-38213': 'security-bypass', 'CVE-2024-3094': 'malware-backdoor', 'CVE-2024-6387': 'rce',
+    'CVE-2023-48795': 'weak-crypto', 'CVE-2016-20012': 'information-disclosure',
+    'CVE-2024-1086': 'privilege-escalation', 'CVE-2023-4911': 'privilege-escalation',
+    'CVE-2022-0847': 'privilege-escalation', 'CVE-2023-38545': 'rce', 'CVE-2023-38546': 'web-application',
+    'CVE-2023-28322': 'information-disclosure', 'CVE-2023-0464': 'denial-of-service',
+    'CVE-2024-0727': 'denial-of-service', 'CVE-2023-44487': 'denial-of-service', 'CVE-2024-4577': 'web-application',
+    'CVE-2023-25690': 'web-application', 'CVE-2021-44228': 'rce', 'CVE-2024-43425': 'web-application',
+    'CVE-2024-21096': 'other', 'CVE-2016-2183': 'weak-crypto', 'CVE-2015-4000': 'weak-crypto',
+    'CVE-2014-3566': 'weak-crypto', 'CVE-2023-20198': 'privilege-escalation', 'CVE-2024-21762': 'rce',
+    'CVE-2023-27997': 'rce',
+}
 
 
 class Command(BaseCommand):
@@ -169,6 +179,8 @@ class Command(BaseCommand):
             user.save()
             users[username] = user
         staff = [users['admin'], users['tech1'], users['tech2']]
+        techs = [users['tech1'], users['tech2']]
+        categories = {c.code: c for c in VulnCategory.objects.all()}
 
         assets = []
         for host, ip, kind, os_name, loc, groups in SERVERS:
@@ -197,14 +209,20 @@ class Command(BaseCommand):
             k = rng.randint(3, 6) if asset.asset_type != 'pc' else rng.randint(1, 3)
             for cve, title, score, _, desc, fix in rng.sample(pool, min(k, len(pool))):
                 severity = severity_from_cvss(score)
+                # ตัวอย่างระดับ 1 (เล็กน้อย): ช่องโหว่ CVSS ต่ำบนอุปกรณ์เครือข่ายที่ประเมินแล้วว่าผลกระทบน้อย
+                if score < 4.0 and asset.asset_type == 'network':
+                    severity = Severity.INFO
                 found = today - timedelta(days=rng.randint(0, 175))
                 age = (today - found).days
-                fix_chance = min(0.9, age / 120 + (0.25 if severity in ('critical', 'high') else 0))
+                fix_chance = min(0.9, age / 120 + (0.25 if severity >= Severity.HIGH else 0))
                 roll = rng.random()
                 status = Status.FIXED if roll < fix_chance else Status.IN_PROGRESS if roll < fix_chance + 0.15 else Status.OPEN
+                # งานที่เริ่มแล้วมีผู้รับผิดชอบเสมอ งานที่ยังไม่เริ่มมอบหมายไว้บางส่วน
+                assignee = rng.choice(techs) if status != Status.OPEN or rng.random() < 0.5 else None
                 vuln = Vulnerability.objects.create(
                     cve_id=cve, title=title, description=desc, solution=fix, severity=severity, cvss_score=score,
-                    asset=asset, status=status, found_at=found, created_by=rng.choice(staff),
+                    category=categories.get(CATEGORY_OF.get(cve, 'other')),
+                    asset=asset, status=status, found_at=found, created_by=rng.choice(staff), assigned_to=assignee,
                 )
                 history = [('', Status.OPEN, 'บันทึกจากผลการสแกนประจำเดือน', at(found, 9))]
                 if status in (Status.IN_PROGRESS, Status.FIXED):
@@ -214,10 +232,13 @@ class Command(BaseCommand):
                         done = min(today, start + timedelta(days=rng.randint(0, max(1, (today - start).days))))
                         history.append((Status.IN_PROGRESS, Status.FIXED, fix, at(done, 16)))
                         vuln.fixed_at = history[-1][3]
-                        vuln.save(update_fields=['fixed_at'])
+                        vuln.fixed_by = assignee
+                        vuln.save(update_fields=['fixed_at', 'fixed_by'])
                 for old, new, note, when in history:
+                    # ขั้นแรกบันทึกโดยใครก็ได้ ขั้นต่อจากนั้นทำโดยผู้รับผิดชอบ
+                    by = assignee if old and assignee else rng.choice(staff)
                     StatusHistory.objects.create(vulnerability=vuln, old_status=old, new_status=new, note=note,
-                                                 changed_by=rng.choice(staff), changed_at=when)
+                                                 changed_by=by, changed_at=when)
                 created += 1
 
         self.stdout.write(self.style.SUCCESS(

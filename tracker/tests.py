@@ -7,15 +7,16 @@ from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import User
-from tracker.models import Asset, ImportLog, StatusHistory, Vulnerability
+from tracker.models import Asset, ImportLog, StatusHistory, Vulnerability, VulnCategory
 
 
 class StatusChangeTests(TestCase):
     def setUp(self):
         self.tech = User.objects.create_user('tech', password='x-Pass-12345', role='technician')
         self.asset = Asset.objects.create(hostname='SRV-WEB-01', location='ห้องเซิร์ฟเวอร์')
-        self.vuln = Vulnerability.objects.create(cve_id='CVE-2024-6387', title='regreSSHion', severity='high',
+        self.vuln = Vulnerability.objects.create(cve_id='CVE-2024-6387', title='regreSSHion', severity=4,
                                                  asset=self.asset, found_at=date(2026, 9, 1))
+        self.cat = VulnCategory.objects.get(code='rce')
         self.client.force_login(self.tech)
 
     def test_status_change_records_history(self):
@@ -55,7 +56,7 @@ class StatusChangeTests(TestCase):
 
     def test_future_found_at_rejected(self):
         response = self.client.post(reverse('vuln_create'), {
-            'cve_id': 'CVE-2024-3094', 'title': 'XZ', 'severity': 'critical', 'asset': self.asset.pk,
+            'cve_id': 'CVE-2024-3094', 'title': 'XZ', 'severity': '5', 'category': self.cat.pk, 'asset': self.asset.pk,
             'found_at': '2999-01-01'})
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Vulnerability.objects.filter(cve_id='CVE-2024-3094').exists())
@@ -65,7 +66,7 @@ class StatusChangeTests(TestCase):
         self.assertEqual(response.status_code, 405)
 
     def test_create_vuln_records_history_and_rejects_duplicate(self):
-        data = {'cve_id': 'cve-2024-3094', 'title': 'XZ backdoor', 'severity': 'critical', 'cvss_score': '10.0',
+        data = {'cve_id': 'cve-2024-3094', 'title': 'XZ backdoor', 'severity': '5', 'category': self.cat.pk, 'cvss_score': '10.0',
                 'asset': self.asset.pk, 'found_at': '2026-10-01'}
         self.client.post(reverse('vuln_create'), data)
         vuln = Vulnerability.objects.get(cve_id='CVE-2024-3094')
@@ -101,7 +102,7 @@ class ImportTests(TestCase):
     def test_json_import(self):
         self.upload('scan.json', '{"vulnerabilities": [{"cve_id": "CVE-2024-6387", "title": "OpenSSH", '
                                  '"severity": "HIGH", "hostname": "LAB301-PC01"}]}')
-        self.assertEqual(Vulnerability.objects.get().severity, 'high')
+        self.assertEqual(Vulnerability.objects.get().severity, 4)
 
     def test_long_cve_and_bad_values_are_skipped_not_crashing(self):
         self.upload('scan.csv', (
@@ -143,7 +144,7 @@ class DemoDataTests(TestCase):
         admin = User.objects.get(username='admin')
         self.client.force_login(admin)
         vuln = Vulnerability.objects.first()
-        for url in [reverse('dashboard'), reverse('vuln_list') + '?status=pending&severity=critical',
+        for url in [reverse('dashboard'), reverse('vuln_list') + '?status=pending&severity=5',
                     reverse('vuln_detail', args=[vuln.pk]), reverse('asset_list'),
                     reverse('asset_detail', args=[vuln.asset_id]), reverse('reports'), reverse('history'),
                     reverse('user_list'), reverse('import_scan')]:

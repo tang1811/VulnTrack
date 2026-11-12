@@ -19,10 +19,27 @@
       <input type="search" id="f-q" name="q" value="{{ f.q }}" placeholder="CVE, ชื่อช่องโหว่ หรือ hostname">
     </div>
     <div class="field">
+      <label for="f-cat">ประเภท</label>
+      <select id="f-cat" name="category">
+        <option value="">ทั้งหมด</option>
+        {% for c in categories %}<option value="{{ c.pk }}" {% if f.category == c.pk|stringformat:'s' %}selected{% endif %}>{{ c.name }}{% if not c.is_active %} (ปิดใช้งาน){% endif %}</option>{% endfor %}
+        <option value="none" {% if f.category == 'none' %}selected{% endif %}>ไม่ระบุประเภท</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-who">ผู้รับผิดชอบ</label>
+      <select id="f-who" name="assignee">
+        <option value="">ทั้งหมด</option>
+        <option value="me" {% if f.assignee == 'me' %}selected{% endif %}>งานของฉัน</option>
+        <option value="none" {% if f.assignee == 'none' %}selected{% endif %}>ยังไม่มอบหมาย</option>
+        {% for u in assignees %}<option value="{{ u.pk }}" {% if f.assignee == u.pk|stringformat:'s' %}selected{% endif %}>{{ u.display_name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
       <label for="f-sev">ความรุนแรง</label>
       <select id="f-sev" name="severity">
         <option value="">ทั้งหมด</option>
-        {% for v, l in severities %}<option value="{{ v }}" {% if f.severity == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        {% for v, l in severities %}<option value="{{ v }}" {% if f.severity == v|stringformat:'s' %}selected{% endif %}>{{ v }} - {{ l }}</option>{% endfor %}
       </select>
     </div>
     <div class="field">
@@ -43,7 +60,7 @@
     <div class="field">
       <label for="f-sort">เรียงตาม</label>
       <select id="f-sort" name="sort">
-        <option value="severity">ความรุนแรง</option>
+        <option value="severity">ความรุนแรง (5 → 1)</option>
         <option value="newest" {% if f.sort == 'newest' %}selected{% endif %}>พบล่าสุด</option>
         <option value="updated" {% if f.sort == 'updated' %}selected{% endif %}>อัปเดตล่าสุด</option>
         <option value="host" {% if f.sort == 'host' %}selected{% endif %}>ชื่ออุปกรณ์</option>
@@ -63,6 +80,7 @@
           <th scope="col">รหัส CVE</th>
           <th scope="col">ชื่อช่องโหว่</th>
           <th scope="col">อุปกรณ์ที่ได้รับผลกระทบ</th>
+          <th scope="col">ผู้รับผิดชอบ</th>
           <th scope="col">วันที่พบ</th>
           <th scope="col">สถานะ</th>
           {% if can.edit_vulns %}<th scope="col" class="right">ดำเนินการ</th>{% endif %}
@@ -73,13 +91,16 @@
         <tr>
           <td>{% severity_badge v.severity %} <span class="small muted num">{{ v.cvss_score|default_if_none:'' }}</span></td>
           <td><a class="row-link mono" href="{% url 'vuln_detail' v.pk %}">{{ v.cve_id }}</a></td>
-          <td>{{ v.title }}</td>
+          <td>{{ v.title }}<div class="small muted">{{ v.category.name|default:'ไม่ระบุประเภท' }}</div></td>
           <td><div class="host">{% if can.view_assets %}<a class="row-link mono" href="{% url 'asset_detail' v.asset_id %}">{{ v.asset.hostname }}</a>{% else %}<span class="mono">{{ v.asset.hostname }}</span>{% endif %}<span>{{ v.asset.location }}</span></div></td>
+          <td class="small">{% if v.status == 'fixed' and v.fixed_by %}แก้โดย {% person v.fixed_by %}{% else %}{% person v.assigned_to 'ยังไม่มอบหมาย' %}{% endif %}</td>
           <td class="num" style="white-space:nowrap">{{ v.found_at|thai_date }}</td>
           <td>{% status_badge v.status %}</td>
           {% if can.edit_vulns %}
           <td class="right">
-            {% if v.status != 'fixed' %}
+            {% if v.status != 'fixed' and not user|can_work:v %}
+              <span class="small muted">งานของผู้อื่น</span>
+            {% elif v.status != 'fixed' %}
             <form method="post" action="{% url 'vuln_status' v.pk %}">
               {% csrf_token %}
               <input type="hidden" name="next" value="{{ request.get_full_path }}">
