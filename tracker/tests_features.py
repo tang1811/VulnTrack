@@ -248,7 +248,7 @@ class AssignmentTests(TestCase):
     def test_create_by_technician_assigns_self_admin_can_choose(self):
         rce = VulnCategory.objects.get(code='rce')
         data = {'cve_id': 'CVE-2024-3094', 'title': 'XZ', 'severity': '5', 'category': rce.pk,
-                'asset': self.asset.pk, 'found_at': '2026-10-01'}
+                'asset': self.asset.pk, 'found_at': '2026-10-01', 'likelihood': 4, 'impact': 3}
         self.client.force_login(self.tech1)
         self.client.post(reverse('vuln_create'), {**data, 'assigned_to': self.tech2.pk})
         self.assertEqual(Vulnerability.objects.get(cve_id='CVE-2024-3094').assigned_to, self.tech1)
@@ -262,7 +262,7 @@ class AssignmentTests(TestCase):
         self.client.force_login(self.tech1)
         self.client.post(reverse('vuln_edit', args=[self.vuln.pk]), {
             'cve_id': self.vuln.cve_id, 'title': 'new title', 'severity': '4', 'category': self.vuln.category_id,
-            'asset': self.asset.pk, 'found_at': '2026-09-01', 'assigned_to': self.tech2.pk})
+            'asset': self.asset.pk, 'found_at': '2026-09-01', 'likelihood': 4, 'impact': 3, 'assigned_to': self.tech2.pk})
         self.vuln.refresh_from_db()
         self.assertEqual((self.vuln.title, self.vuln.assigned_to), ('new title', self.tech1))
 
@@ -285,7 +285,7 @@ class AssignmentTests(TestCase):
         self.assertNotIn('assigned_to', self.client.get(reverse('vuln_edit', args=[self.vuln.pk])).context['form'].fields)
         self.client.post(reverse('vuln_edit', args=[self.vuln.pk]), {
             'cve_id': self.vuln.cve_id, 'title': 'แก้ชื่อ', 'severity': '4', 'category': self.vuln.category_id,
-            'asset': self.asset.pk, 'found_at': '2026-09-01', 'assigned_to': self.tech2.pk})
+            'asset': self.asset.pk, 'found_at': '2026-09-01', 'likelihood': 4, 'impact': 3, 'assigned_to': self.tech2.pk})
         self.vuln.refresh_from_db()
         self.assertEqual((self.vuln.title, self.vuln.assigned_to), ('แก้ชื่อ', self.tech1))
 
@@ -306,7 +306,7 @@ class AssignmentTests(TestCase):
         with mock.patch.object(Form, 'is_valid', concurrent_fix):
             self.client.post(reverse('vuln_edit', args=[self.vuln.pk]), {
                 'cve_id': self.vuln.cve_id, 'title': 'แก้ชื่อ', 'severity': '4',
-                'category': self.vuln.category_id, 'asset': self.asset.pk, 'found_at': '2026-09-01'})
+                'category': self.vuln.category_id, 'asset': self.asset.pk, 'found_at': '2026-09-01', 'likelihood': 4, 'impact': 3})
         self.vuln.refresh_from_db()
         self.assertEqual((self.vuln.title, self.vuln.status, self.vuln.fixed_by), ('แก้ชื่อ', 'fixed', self.admin))
 

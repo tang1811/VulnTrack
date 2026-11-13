@@ -18,6 +18,7 @@
   <div class="card">
     <dl class="facts">
       <dt>ระดับความรุนแรง</dt><dd>{% severity_badge v.severity %} <span class="muted small">CVSS {{ v.cvss_score|default_if_none:'-' }}</span></dd>
+      <dt>คะแนนความเสี่ยง</dt><dd>{% risk_badge v.risk_score %}{% if v.risk_score %} <span class="muted small">Likelihood {{ v.likelihood }} ({{ v.get_likelihood_display }}) × Impact {{ v.impact }} ({{ v.get_impact_display }})</span>{% endif %}</dd>
       <dt>ประเภทช่องโหว่</dt><dd>{{ v.category.name|default:'ไม่ระบุ' }}{% if v.category.description %}<div class="small muted">{{ v.category.description }}</div>{% endif %}</dd>
       <dt>สถานะ</dt><dd>{% status_badge v.status %}</dd>
       <dt>ผู้รับผิดชอบ</dt><dd>{% person v.assigned_to 'ยังไม่มอบหมาย' %}{% if v.assigned_to.department %}<div class="small muted">{{ v.assigned_to.department }}</div>{% endif %}</dd>

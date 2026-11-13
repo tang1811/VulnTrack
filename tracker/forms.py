@@ -28,8 +28,8 @@ class DateInput(forms.DateInput):
 class VulnerabilityForm(forms.ModelForm):
     class Meta:
         model = Vulnerability
-        fields = ['cve_id', 'title', 'severity', 'category', 'cvss_score', 'asset', 'assigned_to', 'found_at',
-                  'description', 'solution']
+        fields = ['cve_id', 'title', 'severity', 'category', 'cvss_score', 'likelihood', 'impact', 'asset',
+                  'assigned_to', 'found_at', 'description', 'solution']
         field_classes = {'assigned_to': UserChoiceField}
         widgets = {
             'cve_id': forms.TextInput(attrs={'placeholder': 'CVE-2024-3094', 'class': 'mono'}),
@@ -43,6 +43,14 @@ class VulnerabilityForm(forms.ModelForm):
         self.fields['severity'].choices = [('', '— เลือกระดับ —')] + [
             (value, f'{value} - {label}') for value, label in self.fields['severity'].choices if value != ''
         ]
+        # ประเมินความเสี่ยงเป็นข้อมูลบังคับเมื่อบันทึกผ่านฟอร์ม (ข้อมูลเก่า/นำเข้าที่ยังไม่ประเมินเว้นว่างได้)
+        for name in ('likelihood', 'impact'):
+            field = self.fields[name]
+            field.required = True
+            field.choices = [('', '— เลือก 1-5 —')] + [
+                (value, f'{value} - {label}') for value, label in field.choices if value != ''
+            ]
+            field.widget.attrs['data-risk-input'] = name
         category = self.fields['category']
         category.queryset = VulnCategory.objects.filter(is_active=True) | VulnCategory.objects.filter(
             pk=getattr(self.instance, 'category_id', None)

@@ -5,6 +5,7 @@
 | โปรแกรม | ใช้ทำอะไร | ดาวน์โหลด |
 |---|---|---|
 | Python 3.12 ขึ้นไป | รันเว็บ | https://www.python.org/downloads/ (ติ๊ก **Add python.exe to PATH**) |
+| อินเทอร์เน็ต (ครั้งแรก) | ดาวน์โหลดไลบรารีใน `requirements.txt` | – |
 | Git | ดึง/ส่งโค้ดกับ GitHub | https://git-scm.com/downloads |
 | VS Code (ไม่บังคับ) | แก้โค้ด | https://code.visualstudio.com/ |
 | MySQL 8 (ไม่บังคับ) | ฐานข้อมูลจริง ถ้าไม่ติดตั้งจะใช้ SQLite แทน | https://dev.mysql.com/downloads/installer/ |
@@ -26,14 +27,21 @@ cd VulnTrack
 
 ## 2. ติดตั้งและรัน
 
-**Windows:** ดับเบิลคลิก `setup.bat` (ครั้งแรกครั้งเดียว) แล้วดับเบิลคลิก `run.bat` ทุกครั้งที่จะใช้งาน
+**Windows:** ดับเบิลคลิก `run.bat` ได้เลย แม้เป็นเครื่องใหม่ — ถ้ายังไม่มี `.venv` จะเรียก `setup.bat` ให้อัตโนมัติ
+(สร้าง `.venv` → `pip install -r requirements.txt` → `migrate` → `seed_demo`) แล้วเปิดเว็บต่อทันที ครั้งต่อไปดับเบิลคลิก `run.bat` อย่างเดียว
 
-**macOS / Linux หรืออยากพิมพ์คำสั่งเอง:**
+ไลบรารีที่ติดตั้ง (`requirements.txt`): Django 5.2, PyMySQL, python-dotenv และ **bcrypt** (ใช้เข้ารหัสรหัสผ่าน)
+
+`run.bat` รัน `migrate` ให้ทุกครั้งก่อนเปิดเว็บ ฐานข้อมูลเดิมจึงได้ migration ใหม่ เช่น `0003_risk_likelihood_impact` (ช่อง Likelihood/Impact) โดยไม่ต้องทำอะไรเพิ่ม
+ถ้ามี `.venv` อยู่แล้วแต่ไลบรารียังไม่ครบ (เช่น ติดตั้งไว้ก่อนอัปเดตนี้ ยังไม่มี bcrypt) `run.bat` จะตรวจพบและติดตั้งที่ขาดให้เอง (ต้องต่ออินเทอร์เน็ตครั้งนั้น) — ระหว่างที่ยังไม่มี bcrypt ระบบจะใช้ PBKDF2 ไปก่อน จึงยังล็อกอินได้
+หรือรัน `.venv\Scripts\python -m pip install -r requirements.txt`
+
+**macOS / Linux หรืออยากพิมพ์คำสั่งเอง:** (ไม่มีสคริปต์ `.sh` ให้ ใช้คำสั่งด้านล่าง บน macOS/Linux อาจต้องพิมพ์ `python3` แทน `python`)
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate            # macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt    # รวม bcrypt
 python manage.py migrate
 python manage.py seed_demo
 python manage.py runserver
@@ -72,5 +80,7 @@ python manage.py runserver
 | ย้ายโฟลเดอร์แล้วรันไม่ได้ | ลบโฟลเดอร์ `.venv` แล้วรัน `setup.bat` ใหม่ (`.venv` ย้ายที่ไม่ได้) |
 | `Access denied for user 'root'` | รหัสผ่านใน `.env` ไม่ตรงกับ MySQL |
 | `Unknown database 'eec_vulntrack'` | ยังไม่ได้รันคำสั่ง `CREATE DATABASE` ในข้อ 3 |
+| `No module named 'bcrypt'` หรือ error เกี่ยวกับ `BCryptSHA256PasswordHasher` ตอนล็อกอิน | ยังไม่ได้ติดตั้ง bcrypt ดับเบิลคลิก `setup.bat` อีกครั้ง หรือ `.venv\Scripts\python -m pip install -r requirements.txt` |
+| ช่องโหว่เดิมขึ้นความเสี่ยงว่า "ยังไม่ประเมิน" | ข้อมูลสร้างก่อนมีช่อง Likelihood/Impact เป็นเรื่องปกติ แก้ไขทีละรายการเพื่อใส่ค่า หรือสร้างข้อมูลตัวอย่างใหม่ด้วย `seed_demo --reset` (**ลบข้อมูลเดิมทั้งหมด**) |
 | อยากล้างข้อมูลแล้วเริ่มใหม่ | `.venv\Scripts\python manage.py seed_demo --reset` (ลบข้อมูลทั้งหมดแล้วสร้างข้อมูลตัวอย่างใหม่) |
 | ลืมรหัสผ่าน admin | `.venv\Scripts\python manage.py changepassword admin` |

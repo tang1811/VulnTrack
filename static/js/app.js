@@ -83,6 +83,49 @@
   });
 })();
 
+// คำนวณคะแนนความเสี่ยง Likelihood x Impact แบบทันทีบนฟอร์มช่องโหว่
+// เกณฑ์ต้องตรงกับ RISK_LEVELS ใน tracker/models.py (ฝั่งเซิร์ฟเวอร์คำนวณซ้ำจากค่าที่บันทึกเสมอ)
+(function () {
+  var output = document.querySelector('[data-risk-output]');
+  var likelihood = document.querySelector('[data-risk-input="likelihood"]');
+  var impact = document.querySelector('[data-risk-input="impact"]');
+  if (!output || !likelihood || !impact) return;
+  var LEVELS = [[15, 'critical', 'วิกฤต'], [10, 'high', 'สูง'], [5, 'medium', 'ปานกลาง'], [1, 'low', 'ต่ำ']];
+
+  function render() {
+    var l = parseInt(likelihood.value, 10);
+    var i = parseInt(impact.value, 10);
+    output.textContent = '';
+    if (!(l >= 1 && l <= 5 && i >= 1 && i <= 5)) {
+      var hint = document.createElement('span');
+      hint.className = 'muted small';
+      hint.textContent = 'เลือก Likelihood และ Impact เพื่อคำนวณ';
+      output.appendChild(hint);
+      return;
+    }
+    var score = l * i;
+    var level = LEVELS.filter(function (x) { return score >= x[0]; })[0];
+    var badge = document.createElement('span');
+    badge.className = 'badge sev-' + level[1];
+    var num = document.createElement('span');
+    num.className = 'sev-num';
+    num.textContent = String(score);
+    badge.appendChild(num);
+    badge.appendChild(document.createTextNode(level[2]));
+    var formula = document.createElement('span');
+    formula.className = 'muted small';
+    formula.textContent = ' ' + l + ' × ' + i + ' = ' + score + ' จาก 25';
+    output.appendChild(badge);
+    output.appendChild(formula);
+  }
+
+  likelihood.addEventListener('change', render);
+  impact.addEventListener('change', render);
+  likelihood.addEventListener('input', render);
+  impact.addEventListener('input', render);
+  render();
+})();
+
 // ปุ่มพิมพ์รายงาน
 document.addEventListener('click', function (e) {
   if (e.target.closest('[data-print]')) window.print();

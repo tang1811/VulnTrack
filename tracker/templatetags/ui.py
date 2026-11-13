@@ -2,7 +2,7 @@ from django import template
 from django.utils import timezone
 from django.utils.html import format_html
 
-from tracker.models import SEVERITY_SLUG, Severity, Status
+from tracker.models import SEVERITY_SLUG, Severity, Status, risk_level
 
 register = template.Library()
 
@@ -62,6 +62,17 @@ def severity_badge(value):
         '<span class="sev-num">{}</span>{}</span>',
         slug, level.value, format_html(SEVERITY_ICON[slug]), level.value, level.label,
     )
+
+
+@register.simple_tag
+def risk_badge(score, empty='ยังไม่ประเมิน'):
+    """ป้ายคะแนนความเสี่ยง (Likelihood x Impact) เช่น [16 วิกฤต]"""
+    level = risk_level(score)
+    if not level:
+        return format_html('<span class="muted small">{}</span>', empty)
+    slug, label = level
+    return format_html('<span class="badge sev-{}" title="คะแนนความเสี่ยง {} จาก 25"><span class="sev-num">{}</span>{}</span>',
+                       slug, score, score, label)
 
 
 @register.filter

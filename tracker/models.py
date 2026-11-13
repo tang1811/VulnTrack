@@ -36,6 +36,44 @@ def severity_from_cvss(score):
     return Severity.INFO
 
 
+class Likelihood(models.IntegerChoices):
+    """โอกาสที่ช่องโหว่จะถูกโจมตี 1-5"""
+    ALMOST_CERTAIN = 5, 'เกิดขึ้นแน่นอน'
+    LIKELY = 4, 'มีโอกาสสูง'
+    POSSIBLE = 3, 'อาจเกิดขึ้น'
+    UNLIKELY = 2, 'ไม่น่าเกิด'
+    RARE = 1, 'แทบไม่เกิด'
+
+
+class Impact(models.IntegerChoices):
+    """ผลกระทบต่อระบบ/องค์กรหากถูกโจมตีสำเร็จ 1-5"""
+    SEVERE = 5, 'ร้ายแรงมาก'
+    MAJOR = 4, 'สูง'
+    MODERATE = 3, 'ปานกลาง'
+    MINOR = 2, 'ต่ำ'
+    NEGLIGIBLE = 1, 'น้อยมาก'
+
+
+# ระดับความเสี่ยงจากคะแนน Risk Score = Likelihood x Impact (1-25) ตามตาราง Risk Matrix 5x5
+# (คะแนนต่ำสุดของระดับ, slug ใช้เป็น class สี, ชื่อระดับ) เรียงจากมากไปน้อย
+RISK_LEVELS = [
+    (15, 'critical', 'วิกฤต'),
+    (10, 'high', 'สูง'),
+    (5, 'medium', 'ปานกลาง'),
+    (1, 'low', 'ต่ำ'),
+]
+
+
+def risk_level(score):
+    """คืนค่า (slug, ชื่อระดับ) ของคะแนนความเสี่ยง หรือ None ถ้ายังไม่ได้ประเมิน"""
+    if not score:
+        return None
+    for minimum, slug, label in RISK_LEVELS:
+        if score >= minimum:
+            return slug, label
+    return None
+
+
 class Status(models.TextChoices):
     OPEN = 'open', 'ยังไม่แก้ไข'
     IN_PROGRESS = 'in_progress', 'กำลังแก้ไข'
@@ -111,6 +149,15 @@ class Vulnerability(models.Model):
         'คะแนน CVSS', max_digits=3, decimal_places=1, null=True, blank=True,
         validators=[MinValueValidator(0), MaxValueValidator(10)],
     )
+    # ประเมินความเสี่ยง: Risk Score = Likelihood x Impact (ข้อมูลเก่าที่ยังไม่ประเมินเป็นค่าว่าง)
+    likelihood = models.PositiveSmallIntegerField(
+        'โอกาสเกิด (Likelihood)', choices=Likelihood.choices, null=True, blank=True,
+        help_text='5 = เกิดขึ้นแน่นอน ... 1 = แทบไม่เกิด',
+    )
+    impact = models.PositiveSmallIntegerField(
+        'ผลกระทบ (Impact)', choices=Impact.choices, null=True, blank=True,
+        help_text='5 = ร้ายแรงมาก ... 1 = น้อยมาก',
+    )
     asset = models.ForeignKey(Asset, on_delete=models.PROTECT, related_name='vulnerabilities', verbose_name='อุปกรณ์ที่ได้รับผลกระทบ')
     status = models.CharField('สถานะ', max_length=20, choices=Status.choices, default=Status.OPEN)
     solution = models.TextField('วิธีแก้ไข', blank=True)
@@ -151,6 +198,18 @@ class Vulnerability(models.Model):
     @property
     def severity_slug(self):
         return SEVERITY_SLUG.get(self.severity, '')
+
+    @property
+    def risk_score(self):
+        """คะแนนความเสี่ยง 1-25 (None ถ้ายังไม่ได้ประเมิน Likelihood/Impact)"""
+        if self.likelihood and self.impact:
+            return self.likelihood * self.impact
+        return None
+
+    @property
+    def risk_level(self):
+        level = risk_level(self.risk_score)
+        return level[1] if level else ''
 
 
 class StatusHistory(models.Model):

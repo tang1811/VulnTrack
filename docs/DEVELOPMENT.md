@@ -52,7 +52,7 @@ python manage.py <คำสั่ง>
 | คำสั่ง | ใช้ทำอะไร |
 |---|---|
 | `runserver` | เปิดเว็บที่ http://127.0.0.1:8000 (แก้โค้ดแล้วรีโหลดเอง) |
-| `test` | รันชุดทดสอบทั้งหมด (ควรผ่านก่อน push ทุกครั้ง) |
+| `test` | รันชุดทดสอบทั้งหมด 75 รายการ (ควรผ่านก่อน push ทุกครั้ง) · รันเฉพาะไฟล์: `test tracker.tests_risk` |
 | `makemigrations` | สร้างไฟล์ migration หลังแก้ `models.py` |
 | `migrate` | อัปเดตตารางในฐานข้อมูลตาม migration |
 | `seed_demo --reset` | ล้างข้อมูลแล้วสร้างข้อมูลตัวอย่างใหม่ |
@@ -71,17 +71,18 @@ accounts/
   context_processors.py  ส่งตัวแปร can.* ให้ทุก template ใช้ซ่อนเมนู/ปุ่ม
   views.py, forms.py     ล็อกอิน, จัดการผู้ใช้
 tracker/
-  models.py              Asset, Vulnerability, StatusHistory, ImportLog
-  services.py            change_status() เปลี่ยนสถานะ+บันทึกประวัติ, import_scan_file()
-  views.py               ทุกหน้าของระบบหลัก
+  models.py              Asset, Vulnerability, StatusHistory, ImportLog + Likelihood, Impact, RISK_LEVELS, risk_level()
+  services.py            change_status() เปลี่ยนสถานะ+บันทึกประวัติ, import_scan_file() (IMPORT_COLUMNS, _parse_row)
+  views.py               ทุกหน้าของระบบหลัก + with_risk(), RISK_RANGES, dashboard_cache_key(), dashboard_summary()
   forms.py               ฟอร์มช่องโหว่ อุปกรณ์ สถานะ นำเข้าไฟล์
   urls.py                URL ทั้งหมด
   templatetags/ui.py     {% icon %}, {% severity_badge %}, {% status_badge %}, {% person %}, |thai_date, |can_work
   management/commands/seed_demo.py   ข้อมูลตัวอย่าง
+  tests.py, tests_features.py, tests_risk.py   ชุดทดสอบ (tests_risk.py = คะแนนความเสี่ยง, cache แดชบอร์ด, กรณีทดสอบใบงาน T-01..T-05)
 templates/base.html      โครงหน้า + เมนูด้านซ้าย
 templates/tracker/       หน้าต่าง ๆ ของระบบ
 static/css/app.css       Design System (สี ตัวอักษร ระยะห่าง อยู่ใน :root ด้านบนไฟล์)
-static/js/app.js         กราฟ Chart.js + เมนูมือถือ
+static/js/app.js         กราฟ Chart.js + เมนูมือถือ + คำนวณคะแนนความเสี่ยงสดบนฟอร์มช่องโหว่
 ```
 
 ## สูตรเพิ่มหน้าใหม่ (ตัวอย่าง)
@@ -109,6 +110,30 @@ static/js/app.js         กราฟ Chart.js + เมนูมือถือ
 4. commit ไฟล์ใน `tracker/migrations/` ขึ้น Git ด้วยเสมอ อีกเครื่องจะได้ตารางตรงกัน
 
 ห้ามแก้หรือลบไฟล์ migration ที่ push ไปแล้ว ถ้าต้องเปลี่ยนให้สร้าง migration ใหม่
+
+## คะแนนความเสี่ยง (Likelihood × Impact)
+
+- ฟิลด์ `likelihood`, `impact` ใน `Vulnerability` เป็น 1-5 แบบ `null=True` (ข้อมูลเก่า/นำเข้าที่ยังไม่ประเมินเป็นค่าว่าง) แต่ `VulnerabilityForm` บังคับกรอก — migration `0003_risk_likelihood_impact`
+- คะแนนไม่ได้เก็บเป็นคอลัมน์ ใช้ `risk_score` (property) ในโค้ด Python และ `with_risk(qs)` (annotate `risk = F('likelihood') * F('impact')`) เวลากรอง/เรียง/นับในฐานข้อมูล
+- เกณฑ์ระดับอยู่ที่ `RISK_LEVELS` ใน `tracker/models.py` ที่เดียว (`RISK_RANGES` ใน views สร้างจากค่านี้): ต่ำ 1-4, ปานกลาง 5-9, สูง 10-14, วิกฤต 15-25
+- **เกณฑ์ชุดเดียวกันถูกเขียนซ้ำใน `static/js/app.js`** (ตัวแปร `LEVELS` ของตัวคำนวณสดบนฟอร์ม) ถ้าแก้ `RISK_LEVELS` ต้องแก้ใน `app.js` ให้ตรงกันด้วย
+  (ค่าที่บันทึกและแสดงหลังบันทึกคำนวณฝั่งเซิร์ฟเวอร์เสมอ JS ใช้แค่แสดงผลก่อนกดบันทึก)
+- นำเข้าไฟล์: `likelihood`, `impact` อยู่ท้าย `IMPORT_COLUMNS` (ไฟล์ตัวอย่างดาวน์โหลดใช้ลำดับนี้) `_parse_row` รับ 1-5 และบังคับให้ใส่คู่กันหรือว่างทั้งคู่
+
+## Cache แดชบอร์ด
+
+- `CACHES` ใน `config/settings.py` ใช้ `LocMemCache` (หน่วยความจำของ process ไม่ต้องติดตั้งเพิ่ม แต่ละ process มี cache ของตัวเอง)
+- `dashboard_summary()` เก็บตัวเลขสรุปที่ทุกคนเห็นเหมือนกันไว้ `DASHBOARD_CACHE_SECONDS = 300` (5 นาที) ตัวเลขเฉพาะคน (งานของฉัน, งานที่ยังว่าง) คำนวณใหม่ทุกครั้งและไม่ใส่ใน cache
+- ไม่ได้ลบ cache ตอนบันทึก แต่ใช้ **คีย์ที่เปลี่ยนเองเมื่อข้อมูลเปลี่ยน**: `dashboard_cache_key()` ประกอบจากวันที่ปัจจุบัน + จำนวนแถวและ `Max(updated_at)` ของ `Vulnerability` และ `Asset`
+  เพิ่ม/ลบ → จำนวนเปลี่ยน, แก้ไข/เปลี่ยนสถานะ/นำเข้า → `updated_at` (auto_now) เปลี่ยน, ข้ามวัน → วันที่เปลี่ยน (ตัวเลข "เดือนนี้" และแนวโน้มจึงไม่ค้าง)
+- **ข้อควรระวัง:** `QuerySet.update()` และ `bulk_update()` **ไม่** อัปเดต `auto_now` ถ้าเพิ่มโค้ดแก้ข้อมูลแบบกลุ่มในอนาคต ต้องใส่ `updated_at=timezone.now()` ไปด้วย
+  หรือเรียก `cache.clear()` หลังแก้ ไม่อย่างนั้นแดชบอร์ดอาจแสดงตัวเลขเก่าได้ถึง 5 นาที
+- ถ้าแก้โครงสร้างข้อมูลที่เก็บใน cache ให้เปลี่ยนเลขเวอร์ชันในคีย์ (`dashboard:v1:` → `v2`) และในเทสต์ให้เรียก `cache.clear()` ใน `setUp` (ดู `tests_risk.py`)
+
+## รหัสผ่าน (bcrypt)
+
+`PASSWORD_HASHERS` ใน `config/settings.py` ตั้ง `BCryptSHA256PasswordHasher` เป็นตัวแรก (ต้องมีแพ็กเกจ `bcrypt` ใน `requirements.txt` ถ้า import bcrypt ไม่ได้ settings จะตัดตัวนี้ออกและใช้ PBKDF2 แทน กันล็อกอินล้ม และ `run.bat` จะติดตั้งไลบรารีที่ขาดให้เอง) ตัวที่เหลือเก็บไว้ให้บัญชีเดิมที่เป็น PBKDF2 ยังล็อกอินได้
+และ Django จะเปลี่ยน hash เป็น bcrypt ให้เองเมื่อล็อกอินสำเร็จครั้งถัดไป ห้ามลบ PBKDF2 ออกจากรายการจนกว่าทุกบัญชีจะเปลี่ยนแล้ว
 
 ## ข้อตกลงในโค้ด
 

@@ -23,6 +23,13 @@
       {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
       {{ field.errors }}
     </div>
+    {% if field.name == 'impact' %}
+    <div class="form-field full risk-live" data-risk-live>
+      <span class="label">คะแนนความเสี่ยง (Likelihood × Impact)</span>
+      <output aria-live="polite" data-risk-output><span class="muted small">เลือก Likelihood และ Impact เพื่อคำนวณ</span></output>
+      <div class="help">คำนวณอัตโนมัติทันทีที่เลือก · ต่ำ 1-4 · ปานกลาง 5-9 · สูง 10-14 · วิกฤต 15-25</div>
+    </div>
+    {% endif %}
     {% endfor %}
   </div>
   <div class="form-foot">

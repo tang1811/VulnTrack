@@ -97,6 +97,29 @@ else:
 
 AUTH_USER_MODEL = 'accounts.User'
 
+# เข้ารหัสรหัสผ่านด้วย bcrypt (BCryptSHA256) เป็นค่าหลัก
+# ตัวอื่นเก็บไว้ให้บัญชีเดิมยังล็อกอินได้ และระบบจะเปลี่ยนเป็น bcrypt ให้อัตโนมัติเมื่อล็อกอินครั้งถัดไป
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'django.contrib.auth.hashers.ScryptPasswordHasher',
+]
+try:
+    import bcrypt  # noqa: F401
+except ImportError:
+    # ยังไม่ได้ติดตั้ง bcrypt (เช่น .venv เก่า) ใช้ PBKDF2 ไปก่อน กันล็อกอินไม่ได้ — รัน setup.bat เพื่อติดตั้ง
+    PASSWORD_HASHERS.remove('django.contrib.auth.hashers.BCryptSHA256PasswordHasher')
+
+# cache ในหน่วยความจำของเซิร์ฟเวอร์ ใช้เก็บตัวเลขสรุปบนแดชบอร์ด (ไม่ต้องติดตั้งโปรแกรมเพิ่ม)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'eec-vulntrack',
+    }
+}
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', 'OPTIONS': {'min_length': 8}},

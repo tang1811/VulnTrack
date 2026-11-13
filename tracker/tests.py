@@ -67,7 +67,7 @@ class StatusChangeTests(TestCase):
 
     def test_create_vuln_records_history_and_rejects_duplicate(self):
         data = {'cve_id': 'cve-2024-3094', 'title': 'XZ backdoor', 'severity': '5', 'category': self.cat.pk, 'cvss_score': '10.0',
-                'asset': self.asset.pk, 'found_at': '2026-10-01'}
+                'asset': self.asset.pk, 'found_at': '2026-10-01', 'likelihood': 4, 'impact': 3}
         self.client.post(reverse('vuln_create'), data)
         vuln = Vulnerability.objects.get(cve_id='CVE-2024-3094')
         self.assertEqual(vuln.history.count(), 1)

@@ -219,7 +219,14 @@ class Command(BaseCommand):
                 status = Status.FIXED if roll < fix_chance else Status.IN_PROGRESS if roll < fix_chance + 0.15 else Status.OPEN
                 # งานที่เริ่มแล้วมีผู้รับผิดชอบเสมอ งานที่ยังไม่เริ่มมอบหมายไว้บางส่วน
                 assignee = rng.choice(techs) if status != Status.OPEN or rng.random() < 0.5 else None
+                # ประเมินความเสี่ยงตัวอย่าง: โอกาสเกิดตามความรุนแรง ผลกระทบตามความสำคัญของอุปกรณ์
+                # ใช้ตัวสุ่มแยก เพื่อไม่ให้ข้อมูลส่วนอื่นเปลี่ยนไปจากเดิม
+                risk_rng = random.Random(f'{cve}@{asset.hostname}')
+                likelihood = max(1, min(5, int(severity) + risk_rng.choice((-1, 0, 0, 1))))
+                base_impact = 4 if asset.asset_type in ('server', 'network') else 2
+                impact = max(1, min(5, base_impact + risk_rng.choice((-1, 0, 1))))
                 vuln = Vulnerability.objects.create(
+                    likelihood=likelihood, impact=impact,
                     cve_id=cve, title=title, description=desc, solution=fix, severity=severity, cvss_score=score,
                     category=categories.get(CATEGORY_OF.get(cve, 'other')),
                     asset=asset, status=status, found_at=found, created_by=rng.choice(staff), assigned_to=assignee,

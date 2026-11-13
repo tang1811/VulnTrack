@@ -43,6 +43,14 @@
       </select>
     </div>
     <div class="field">
+      <label for="f-risk">ระดับความเสี่ยง</label>
+      <select id="f-risk" name="risk">
+        <option value="">ทั้งหมด</option>
+        {% for slug, label, range in risk_levels %}<option value="{{ slug }}" {% if f.risk == slug %}selected{% endif %}>{{ label }} ({{ range.0 }}-{{ range.1 }})</option>{% endfor %}
+        <option value="none" {% if f.risk == 'none' %}selected{% endif %}>ยังไม่ประเมิน</option>
+      </select>
+    </div>
+    <div class="field">
       <label for="f-st">สถานะ</label>
       <select id="f-st" name="status">
         <option value="">ทั้งหมด</option>
@@ -61,6 +69,7 @@
       <label for="f-sort">เรียงตาม</label>
       <select id="f-sort" name="sort">
         <option value="severity">ความรุนแรง (5 → 1)</option>
+        <option value="risk" {% if f.sort == 'risk' %}selected{% endif %}>คะแนนความเสี่ยง (25 → 1)</option>
         <option value="newest" {% if f.sort == 'newest' %}selected{% endif %}>พบล่าสุด</option>
         <option value="updated" {% if f.sort == 'updated' %}selected{% endif %}>อัปเดตล่าสุด</option>
         <option value="host" {% if f.sort == 'host' %}selected{% endif %}>ชื่ออุปกรณ์</option>
@@ -77,6 +86,7 @@
       <thead>
         <tr>
           <th scope="col">ความรุนแรง</th>
+          <th scope="col">ความเสี่ยง <span class="small muted">(L×I)</span></th>
           <th scope="col">รหัส CVE</th>
           <th scope="col">ชื่อช่องโหว่</th>
           <th scope="col">อุปกรณ์ที่ได้รับผลกระทบ</th>
@@ -90,6 +100,7 @@
       {% for v in page.object_list %}
         <tr>
           <td>{% severity_badge v.severity %} <span class="small muted num">{{ v.cvss_score|default_if_none:'' }}</span></td>
+          <td>{% risk_badge v.risk '-' %}</td>
           <td><a class="row-link mono" href="{% url 'vuln_detail' v.pk %}">{{ v.cve_id }}</a></td>
           <td>{{ v.title }}<div class="small muted">{{ v.category.name|default:'ไม่ระบุประเภท' }}</div></td>
           <td><div class="host">{% if can.view_assets %}<a class="row-link mono" href="{% url 'asset_detail' v.asset_id %}">{{ v.asset.hostname }}</a>{% else %}<span class="mono">{{ v.asset.hostname }}</span>{% endif %}<span>{{ v.asset.location }}</span></div></td>

@@ -13,7 +13,8 @@ from accounts.roles import ASSIGNABLE_ROLES, can_work_on
 from .models import (SEVERITY_SLUG, Asset, ImportLog, Severity, Status, StatusHistory, Vulnerability, VulnCategory,
                      cve_validator)
 
-IMPORT_COLUMNS = ['cve_id', 'title', 'severity', 'cvss_score', 'hostname', 'found_at', 'category', 'description', 'solution']
+IMPORT_COLUMNS = ['cve_id', 'title', 'severity', 'cvss_score', 'hostname', 'found_at', 'category', 'description', 'solution',
+                  'likelihood', 'impact']
 REQUIRED_COLUMNS = ['cve_id', 'title', 'severity', 'hostname']
 CVE_MAX_LENGTH = Vulnerability._meta.get_field('cve_id').max_length
 
@@ -156,6 +157,16 @@ def _parse_row(row):
             raise ValueError('found_at เป็นวันในอนาคตไม่ได้')
     else:
         clean['found_at'] = timezone.localdate()
+    # ประเมินความเสี่ยง (ไม่บังคับ) ต้องใส่ทั้งคู่หรือเว้นว่างทั้งคู่
+    for col in ('likelihood', 'impact'):
+        if not clean[col]:
+            clean[col] = None
+        elif clean[col] in ('1', '2', '3', '4', '5'):
+            clean[col] = int(clean[col])
+        else:
+            raise ValueError(f'{col} "{clean[col]}" ไม่ถูกต้อง (ใช้ตัวเลข 1-5)')
+    if (clean['likelihood'] is None) != (clean['impact'] is None):
+        raise ValueError('ต้องใส่ likelihood และ impact คู่กัน หรือเว้นว่างทั้งคู่')
     return clean
 
 
@@ -197,6 +208,7 @@ def import_scan_file(uploaded, user):
                         defaults={
                             'title': data['title'][:255], 'severity': data['severity'], 'category': category,
                             'cvss_score': data['cvss_score'], 'found_at': data['found_at'],
+                            'likelihood': data['likelihood'], 'impact': data['impact'],
                             'description': data['description'], 'solution': data['solution'], 'created_by': user,
                         },
                     )

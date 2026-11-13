@@ -11,6 +11,13 @@ if not exist ".venv\Scripts\python.exe" (
     call setup.bat || (pause & exit /b 1)
 )
 
+rem ติดตั้งไลบรารีที่เพิ่มมาใหม่ (เช่น bcrypt) ถ้า .venv ถูกสร้างไว้ก่อนอัปเดตโค้ด
+".venv\Scripts\python.exe" -c "import django, pymysql, dotenv, bcrypt" >nul 2>&1
+if errorlevel 1 (
+    echo กำลังติดตั้งไลบรารีที่ขาด - ต้องต่ออินเทอร์เน็ต ...
+    ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q -r requirements.txt || (pause & exit /b 1)
+)
+
 rem อัปเดตตารางฐานข้อมูลเผื่อมีการแก้โค้ด
 ".venv\Scripts\python.exe" manage.py migrate -v 0 || (pause & exit /b 1)
 

@@ -73,23 +73,43 @@
   </div>
 </section>
 
+<section class="card card-pad" aria-labelledby="risk-title">
+  <h2 id="risk-title" style="margin-bottom:4px">ระดับความเสี่ยงของช่องโหว่ที่ยังไม่แก้ไข</h2>
+  <p class="small muted" style="margin:0 0 14px">คะแนนความเสี่ยง = Likelihood (โอกาสเกิด 1-5) × Impact (ผลกระทบ 1-5) · คำนวณอัตโนมัติจากข้อมูลที่บันทึก</p>
+  <ul class="risk-summary">
+    {% for r in risk %}
+    <li>{% if can.view_vulns %}<a href="{% url 'vuln_list' %}?risk={{ r.slug }}&status=pending&sort=risk">{% else %}<div class="risk-item">{% endif %}
+      <span class="badge sev-{{ r.slug }}">{{ r.label }}</span>
+      <span class="small muted num">{{ r.min }}-{{ r.max }} คะแนน</span>
+      <b class="num">{{ r.count }}</b>
+    {% if can.view_vulns %}</a>{% else %}</div>{% endif %}</li>
+    {% endfor %}
+    <li>{% if can.view_vulns %}<a href="{% url 'vuln_list' %}?risk=none&status=pending">{% else %}<div class="risk-item">{% endif %}
+      <span class="badge sev-info">ยังไม่ประเมิน</span>
+      <span class="small muted">ยังไม่ระบุ L/I</span>
+      <b class="num">{{ risk_unassessed }}</b>
+    {% if can.view_vulns %}</a>{% else %}</div>{% endif %}</li>
+  </ul>
+</section>
+
 <section class="grid grid-3">
   <div class="card">
     <div class="card-head">
       <div>
         <h2>ช่องโหว่ระดับ 5 วิกฤต / 4 สูง ที่ต้องแก้ไขก่อน</h2>
-        <p>เรียงตามความรุนแรงและคะแนน CVSS</p>
+        <p>เรียงตามความรุนแรง คะแนนความเสี่ยง และคะแนน CVSS</p>
       </div>
       {% if can.view_vulns %}<a class="small" href="{% url 'vuln_list' %}?status=pending">ดูทั้งหมด →</a>{% endif %}
     </div>
     {% if priority %}
     <div class="table-wrap">
       <table class="data">
-        <thead><tr><th scope="col">ความรุนแรง</th><th scope="col">ช่องโหว่</th><th scope="col">อุปกรณ์</th><th scope="col">ผู้รับผิดชอบ</th><th scope="col">สถานะ</th>{% if can.edit_vulns %}<th scope="col" class="right">ดำเนินการ</th>{% endif %}</tr></thead>
+        <thead><tr><th scope="col">ความรุนแรง</th><th scope="col">ความเสี่ยง</th><th scope="col">ช่องโหว่</th><th scope="col">อุปกรณ์</th><th scope="col">ผู้รับผิดชอบ</th><th scope="col">สถานะ</th>{% if can.edit_vulns %}<th scope="col" class="right">ดำเนินการ</th>{% endif %}</tr></thead>
         <tbody>
         {% for v in priority %}
           <tr>
             <td>{% severity_badge v.severity %} <span class="small muted num">{{ v.cvss_score|default_if_none:'' }}</span></td>
+            <td>{% risk_badge v.risk '-' %}</td>
             <td>
               {% if can.view_vulns %}<a class="row-link mono" href="{% url 'vuln_detail' v.pk %}">{{ v.cve_id }}</a>{% else %}<span class="mono">{{ v.cve_id }}</span>{% endif %}
               <div class="small muted">{{ v.title }}</div>

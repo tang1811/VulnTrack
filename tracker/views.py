@@ -4,8 +4,9 @@ from datetime import date
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied
+from django.core.cache import cache
 from django.core.paginator import Paginator
-from django.db.models import Count, F, Q
+from django.db.models import Count, F, Max, Q
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.http import HttpResponse
@@ -17,8 +18,8 @@ from django.views.decorators.http import require_POST
 from accounts.roles import ASSIGNABLE_ROLES, can_work_on, has_perm, role_required
 
 from .forms import AssetForm, AssignForm, CategoryForm, ImportForm, StatusForm, VulnerabilityForm, assignable_users
-from .models import (SEVERITY_ORDER, SEVERITY_SLUG, Asset, ImportLog, Severity, Status, StatusHistory, Vulnerability,
-                     VulnCategory)
+from .models import (RISK_LEVELS, SEVERITY_ORDER, SEVERITY_SLUG, Asset, ImportLog, Severity, Status, StatusHistory,
+                     Vulnerability, VulnCategory)
 from .services import (CHANGED, CONFLICT, FORBIDDEN, IMPORT_COLUMNS, assign, change_status, import_scan_file,
                        record_created)
 
@@ -40,6 +41,27 @@ def vuln_queryset():
     return Vulnerability.objects.select_related('asset', 'category', 'assigned_to', 'fixed_by')
 
 
+def with_risk(qs):
+    """เพิ่มคอลัมน์ risk = Likelihood x Impact ให้ใช้กรอง/เรียงในฐานข้อมูล (ยังไม่ประเมิน = NULL)"""
+    return qs.annotate(risk=F('likelihood') * F('impact'))
+
+
+# ช่วงคะแนนของแต่ละระดับความเสี่ยง {slug: (ต่ำสุด, สูงสุด)} ใช้กรองรายการ
+RISK_RANGES = {slug: (minimum, (RISK_LEVELS[i - 1][0] - 1) if i else 25)
+               for i, (minimum, slug, _label) in enumerate(RISK_LEVELS)}
+
+
+def risk_counts(qs):
+    """จำนวนช่องโหว่แยกตามระดับความเสี่ยง (เรียงจากมากไปน้อย) และจำนวนที่ยังไม่ประเมิน"""
+    agg = with_risk(qs).aggregate(
+        unassessed=Count('id', filter=Q(risk__isnull=True)),
+        **{slug: Count('id', filter=Q(risk__gte=lo, risk__lte=hi)) for slug, (lo, hi) in RISK_RANGES.items()},
+    )
+    levels = [{'slug': slug, 'label': label, 'min': minimum, 'max': RISK_RANGES[slug][1], 'count': agg[slug]}
+              for minimum, slug, label in RISK_LEVELS]
+    return levels, agg['unassessed']
+
+
 def last_months(n):
     today = timezone.localdate()
     months = []
@@ -54,8 +76,33 @@ def last_months(n):
 
 # ---------- แดชบอร์ด (ทุกบทบาท) ----------
 
-@role_required('view_dashboard')
-def dashboard(request):
+DASHBOARD_CACHE_SECONDS = 300
+
+
+def dashboard_cache_key():
+    """
+    คีย์ cache ของตัวเลขสรุปบนแดชบอร์ด ผูกกับจำนวนและเวลาแก้ไขล่าสุดของช่องโหว่/อุปกรณ์
+    เมื่อมีการเพิ่ม แก้ไข ลบ เปลี่ยนสถานะ หรือนำเข้าไฟล์ คีย์จะเปลี่ยนเอง จึงไม่แสดงข้อมูลเก่า
+    (ใส่วันที่ด้วย เพื่อให้ตัวเลข "เดือนนี้" และแนวโน้ม 6 เดือนเปลี่ยนตามวันจริง)
+    """
+    v = Vulnerability.objects.aggregate(n=Count('id'), last=Max('updated_at'))
+    a = Asset.objects.aggregate(n=Count('id'), last=Max('updated_at'))
+    stamp = lambda d: d.isoformat() if d else '-'  # noqa: E731
+    return (f'dashboard:v1:{timezone.localdate().isoformat()}:'
+            f'{v["n"]}:{stamp(v["last"])}:{a["n"]}:{stamp(a["last"])}')
+
+
+def dashboard_summary():
+    """ตัวเลขสรุปที่ทุกคนเห็นเหมือนกัน (คำนวณหนักที่สุดของหน้า) เก็บใน cache ไว้ 5 นาที"""
+    key = dashboard_cache_key()
+    summary = cache.get(key)
+    if summary is None:
+        summary = _build_dashboard_summary()
+        cache.set(key, summary, DASHBOARD_CACHE_SECONDS)
+    return summary
+
+
+def _build_dashboard_summary():
     all_vulns = Vulnerability.objects.all()
     pending = all_vulns.filter(status__in=PENDING)
     total = all_vulns.count()
@@ -105,13 +152,9 @@ def dashboard(request):
         },
     }
 
-    priority = (pending.filter(severity__gte=Severity.HIGH).select_related('asset', 'assigned_to')
-                .order_by(*BY_SEVERITY, 'found_at')[:8])
-    # ช่องโหว่ล่าสุด เรียงตามวันที่พบใหม่สุดก่อน (วันเดียวกันเรียงตามเวลาที่บันทึก)
-    latest = vuln_queryset().order_by('-found_at', '-created_at')[:10]
+    risk, risk_unassessed = risk_counts(pending)
 
-    context = {
-        'section': 'dashboard',
+    return {
         'kpi': {
             'critical': sev_map[Severity.CRITICAL],
             'high': sev_map[Severity.HIGH],
@@ -125,12 +168,30 @@ def dashboard(request):
             'fixed_this_month': all_vulns.filter(fixed_at__gte=month_start).count(),
         },
         'severity': sev,
+        'risk': risk,
+        'risk_unassessed': risk_unassessed,
         'chart': chart,
+        'last_update': all_vulns.order_by('-updated_at').values_list('updated_at', flat=True).first(),
+    }
+
+
+@role_required('view_dashboard')
+def dashboard(request):
+    pending = Vulnerability.objects.filter(status__in=PENDING)
+    # รายการด่วน: ระดับ 4-5 ที่ยังค้าง เรียงตามความรุนแรง แล้วตามคะแนนความเสี่ยง (Likelihood x Impact)
+    priority = (with_risk(pending.filter(severity__gte=Severity.HIGH)).select_related('asset', 'assigned_to')
+                .order_by('-severity', F('risk').desc(nulls_last=True), '-cvss_score', 'found_at')[:8])
+    # ช่องโหว่ล่าสุด เรียงตามวันที่พบใหม่สุดก่อน (วันเดียวกันเรียงตามเวลาที่บันทึก)
+    latest = vuln_queryset().order_by('-found_at', '-created_at')[:10]
+
+    context = {
+        **dashboard_summary(),
+        'section': 'dashboard',
         'priority': priority,
         'latest': latest,
+        # ข้อมูลเฉพาะผู้ใช้ และจำนวนที่เปลี่ยนได้โดยไม่แตะ updated_at (เช่น ลบผู้ใช้ -> SET_NULL) ไม่เก็บใน cache
         'my_pending': pending.filter(assigned_to=request.user).count(),
         'unassigned': pending.filter(assigned_to__isnull=True).count(),
-        'last_update': all_vulns.order_by('-updated_at').values_list('updated_at', flat=True).first(),
     }
     return render(request, 'tracker/dashboard.html', context)
 
@@ -139,13 +200,18 @@ def dashboard(request):
 
 @role_required('view_vulns')
 def vuln_list(request):
-    qs = vuln_queryset()
+    qs = with_risk(vuln_queryset())
     f = {k: request.GET.get(k, '').strip()
-         for k in ('q', 'severity', 'status', 'category', 'assignee', 'location', 'asset', 'sort')}
+         for k in ('q', 'severity', 'risk', 'status', 'category', 'assignee', 'location', 'asset', 'sort')}
     if f['q']:
         qs = qs.filter(Q(cve_id__icontains=f['q']) | Q(title__icontains=f['q']) | Q(asset__hostname__icontains=f['q']))
     if f['severity'].isdigit() and int(f['severity']) in Severity.values:
         qs = qs.filter(severity=int(f['severity']))
+    if f['risk'] == 'none':
+        qs = qs.filter(risk__isnull=True)
+    elif f['risk'] in RISK_RANGES:
+        lo, hi = RISK_RANGES[f['risk']]
+        qs = qs.filter(risk__gte=lo, risk__lte=hi)
     if f['status'] == 'pending':
         qs = qs.filter(status__in=PENDING)
     elif f['status'] in Status.values:
@@ -166,6 +232,7 @@ def vuln_list(request):
         qs = qs.filter(asset_id=int(f['asset']))
     sorts = {
         'severity': (*BY_SEVERITY, '-found_at'),
+        'risk': (F('risk').desc(nulls_last=True), '-severity', '-cvss_score', '-found_at'),
         'newest': ('-found_at', '-created_at'),
         'updated': ('-updated_at',),
         'host': ('asset__hostname', '-severity'),
@@ -180,11 +247,13 @@ def vuln_list(request):
         'f': f,
         'querystring': params.urlencode(),
         'severities': Severity.choices,
+        'risk_levels': [(slug, label, RISK_RANGES[slug]) for _minimum, slug, label in RISK_LEVELS],
         'statuses': Status.choices,
         'categories': VulnCategory.objects.all(),
         'assignees': assignable_users(),
         'locations': Asset.objects.order_by('location').values_list('location', flat=True).distinct(),
-        'has_filter': any(f[k] for k in ('q', 'severity', 'status', 'category', 'assignee', 'location', 'asset')),
+        'has_filter': any(f[k] for k in ('q', 'severity', 'risk', 'status', 'category', 'assignee', 'location',
+                                         'asset')),
     })
 
 
@@ -436,7 +505,7 @@ def import_template(request):
     writer.writerow(IMPORT_COLUMNS)
     writer.writerow(['CVE-2024-38063', 'Windows TCP/IP IPv6 Remote Code Execution', '5', '9.8',
                      'LAB301-PC01', timezone.localdate().isoformat(), 'rce', 'ช่องโหว่ในสแตก IPv6',
-                     'ติดตั้งแพตช์ KB5041578'])
+                     'ติดตั้งแพตช์ KB5041578', '4', '5'])
     return response
 
 
@@ -524,12 +593,15 @@ def report_csv(request):
     response['Content-Disposition'] = f'attachment; filename="vulntrack-report-{stamp}.csv"'
     response.write('﻿')  # BOM ให้ Excel อ่านภาษาไทยได้
     writer = csv.writer(response)
-    writer.writerow(['รหัส CVE', 'ชื่อช่องโหว่', 'ระดับ (1-5)', 'ระดับความรุนแรง', 'ประเภท', 'CVSS', 'อุปกรณ์',
+    writer.writerow(['รหัส CVE', 'ชื่อช่องโหว่', 'ระดับ (1-5)', 'ระดับความรุนแรง', 'ประเภท', 'CVSS',
+                     'Likelihood (1-5)', 'Impact (1-5)', 'คะแนนความเสี่ยง (1-25)', 'ระดับความเสี่ยง', 'อุปกรณ์',
                      'ห้อง/พื้นที่', 'สถานะ', 'ผู้รับผิดชอบ', 'ผู้แก้ไข', 'วันที่พบ', 'วันที่แก้ไขเสร็จ'])
     for v in vuln_queryset().order_by('-severity', 'asset__hostname'):
         writer.writerow([
             v.cve_id, v.title, v.severity, v.get_severity_display(), v.category.name if v.category else '',
-            '' if v.cvss_score is None else v.cvss_score, v.asset.hostname, v.asset.location,
+            '' if v.cvss_score is None else v.cvss_score,
+            v.likelihood or '', v.impact or '', v.risk_score or '', v.risk_level,
+            v.asset.hostname, v.asset.location,
             v.get_status_display(), v.assigned_to.display_name if v.assigned_to else '',
             v.fixed_by.display_name if v.fixed_by else '', v.found_at.isoformat(),
             timezone.localtime(v.fixed_at).strftime('%Y-%m-%d %H:%M') if v.fixed_at else '',
